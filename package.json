@@ -12,7 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "spike:bbox": "tsx --env-file-if-exists=.env.local scripts/spike-bbox.ts"
+    "spike:bbox": "tsx --env-file-if-exists=.env.local scripts/spike-bbox.ts",
+    "smoke:gemini": "tsx --env-file-if-exists=.env.local scripts/smoke-gemini.ts",
+    "fixtures": "tsx scripts/make-fixtures.ts"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",
@@ -23,12 +25,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "pdf-lib": "^1.17.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",

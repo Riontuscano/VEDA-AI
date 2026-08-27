@@ -16,6 +16,8 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+
 import { getAiProvider } from "@/lib/ai";
 import type { PageImage } from "@/lib/ai/provider";
 import { sniffImageType } from "@/lib/ingest/validate";
@@ -82,15 +84,71 @@ async function main(): Promise<void> {
     "utf8",
   );
 
+  const annotated = await annotatePages(files, overlays, outputDir);
+
   console.log(
     [
       "",
       `Regions returned : ${overlays.length}`,
       `Page fallbacks   : ${fallbacks}${fallbacks ? "  <-- model gave unusable boxes for these" : ""}`,
       `Open             : spike-output/index.html`,
+      `Annotated images : ${annotated.join(", ")}`,
       "",
     ].join("\n"),
   );
+}
+
+/**
+ * Draws the boxes onto copies of the page images.
+ *
+ * The HTML view needs a browser; these PNGs can be checked from anywhere,
+ * which matters because this is the one result in the project that can only be
+ * judged by looking at it.
+ */
+async function annotatePages(
+  files: string[],
+  overlays: Overlay[],
+  outputDir: string,
+): Promise<string[]> {
+  const written: string[] = [];
+
+  for (const [index, file] of files.entries()) {
+    const image = await loadImage(await readFile(file));
+    const canvas = createCanvas(image.width, image.height);
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0);
+
+    const pageOverlays = overlays.filter(
+      (overlay) => overlay.box.page === index,
+    );
+
+    pageOverlays.forEach((overlay, i) => {
+      const { x, y, w, h, source } = overlay.box;
+      const left = x * image.width;
+      const top = y * image.height;
+      const width = w * image.width;
+      const height = h * image.height;
+      const color = source === "model" ? "#2563eb" : "#dc2626";
+
+      context.strokeStyle = color;
+      context.lineWidth = 3;
+      context.strokeRect(left, top, width, height);
+
+      const tag = `${i + 1}. ${overlay.label}`;
+      context.font = "bold 20px sans-serif";
+      const tagWidth = context.measureText(tag).width + 10;
+      context.fillStyle = color;
+      context.fillRect(left, Math.max(0, top - 24), tagWidth, 24);
+      context.fillStyle = "#ffffff";
+      context.fillText(tag, left + 5, Math.max(18, top - 6));
+    });
+
+    const name = `annotated-${index + 1}.png`;
+    await writeFile(path.join(outputDir, name), canvas.toBuffer("image/png"));
+    written.push(`spike-output/${name}`);
+  }
+
+  return written;
 }
 
 /** Self-contained HTML — the images are referenced, not copied. */
