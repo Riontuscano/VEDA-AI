@@ -1,0 +1,24 @@
+# Render blueprint.
+#
+# Deployed as a single long-lived Node server rather than serverless functions.
+# That is a deliberate architectural choice, not a preference: the app keeps
+# sessions in memory and runs the pipeline as an in-process background job, and
+# neither survives a serverless model, where each request may hit a different
+# instance and work stops when the response returns. See README, "Why not
+# Vercel".
+services:
+  - type: web
+    name: veda-ai
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Set in the Render dashboard; never committed.
+      - key: GEMINI_API_KEY
+        sync: false
