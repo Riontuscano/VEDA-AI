@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# keep the example env template tracked
+!.env.example
+
+# local runtime data
+.data/
+.cache/
