@@ -11,7 +11,10 @@ services:
     name: veda-ai
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    # --include=dev is required: NODE_ENV=production below would otherwise make
+    # npm skip devDependencies, and `next build` needs typescript, tailwindcss
+    # and eslint-config-next from there.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /
     envVars:
