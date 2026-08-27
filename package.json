@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "spike:bbox": "tsx scripts/spike-bbox.ts"
+    "spike:bbox": "tsx --env-file-if-exists=.env.local scripts/spike-bbox.ts"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",

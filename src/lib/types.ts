@@ -128,3 +128,26 @@ export type SessionStatusPayload = {
   status: SessionStatus;
   errors: PipelineError[];
 };
+
+/**
+ * A page as the viewer sees it: dimensions for aspect-ratio layout and a URL
+ * to fetch the image. Storage keys never leave the server.
+ */
+export type PageView = {
+  index: number;
+  width: number;
+  height: number;
+  url: string;
+};
+
+/** Response shape of `GET /api/sessions/:id/result`. */
+export type SessionResultPayload = {
+  sessionId: string;
+  status: SessionStatus;
+  questionPages: PageView[];
+  answerPages: PageView[];
+  questions: Question[];
+  answers: AnswerBlock[];
+  mappings: Mapping[];
+  errors: PipelineError[];
+};
