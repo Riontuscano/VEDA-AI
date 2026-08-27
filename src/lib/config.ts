@@ -79,11 +79,4 @@ export function resetConfigForTests(): void {
   cached = null;
 }
 
-/**
- * Upload limits are needed by the client (to pre-validate before uploading)
- * and must not pull the API key into the browser bundle.
- */
-export const PUBLIC_LIMITS = {
-  maxPagesPerDocument: 20,
-  maxPageBytes: 8 * 1024 * 1024,
-} as const;
+export { PUBLIC_LIMITS } from "./limits";
