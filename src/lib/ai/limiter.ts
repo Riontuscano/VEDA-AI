@@ -1,9 +1,6 @@
 /**
- * Minimal concurrency limiter.
- *
- * Free-tier model quotas are measured in requests per minute, so firing one
- * call per page in parallel is the fastest way to get rate-limited. Every model
- * call goes through a single shared limiter.
+ * Free-tier quotas are per-minute, so firing one call per page in parallel is
+ * the fastest way to get rate-limited. Every model call goes through this.
  */
 export type Limiter = <T>(task: () => Promise<T>) => Promise<T>;
 

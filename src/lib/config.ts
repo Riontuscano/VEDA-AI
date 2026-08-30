@@ -1,23 +1,16 @@
 import { z } from "zod";
 
-/**
- * Server-side configuration, validated once on first access.
- *
- * Lazy rather than module-load eager so that `next build` and unit tests do
- * not require a real API key — but any code path that actually needs config
- * fails loudly and immediately rather than passing `undefined` downstream.
- */
+// Validated once, lazily: `next build` and unit tests shouldn't need a real
+// API key, but anything that actually reads config fails loudly.
 
 const intFromEnv = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);
 
 const ConfigSchema = z.object({
-  /**
-   * One or more API keys. Several keys are pooled and rotated, which raises the
-   * effective free-tier quota and makes a per-key exhaustion recoverable rather
-   * than fatal.
-   */
-  geminiApiKeys: z.array(z.string().min(1)).min(1, "At least one Gemini API key is required"),
+  /** Pooled and rotated, so one key hitting its quota isn't fatal. */
+  geminiApiKeys: z
+    .array(z.string().min(1))
+    .min(1, "At least one Gemini API key is required"),
   geminiModel: z.string().min(1).default("gemini-2.5-flash"),
   /** How long an exhausted key sits out before being retried. */
   geminiKeyCooldownMs: intFromEnv(65_000),
@@ -34,9 +27,8 @@ const ConfigSchema = z.object({
   /** Model calls are retried this many times after the first attempt. */
   aiMaxRetries: z.coerce.number().int().min(0).default(2),
   /**
-   * Thinking tokens per call. Zero by default: extraction is transcription and
-   * layout work, not reasoning, and the extra latency was causing upstream 503
-   * timeouts on multi-page sheets. Raise it if extraction quality needs it.
+   * Zero by default. Extraction is transcription, not reasoning, and the extra
+   * latency was causing upstream 503s on multi-page sheets.
    */
   aiThinkingBudget: z.coerce.number().int().min(0).default(0),
 
@@ -54,22 +46,12 @@ const ConfigSchema = z.object({
   /** Root directory for rasterized page images, when using local disk. */
   fileStoreDir: z.string().default(".data/files"),
 
-  /*
-   * Optional managed backends.
-   *
-   * Present in a serverless deployment, absent locally. Their absence is not an
-   * error: the in-memory and on-disk implementations are correct for a single
-   * long-lived process, and requiring cloud credentials to run the app locally
-   * would be a worse default.
-   */
+  // Present on serverless, absent locally. Absence is not an error: in-memory
+  // and on-disk are correct for a single long-lived process.
   redisUrl: z.string().url().optional(),
   redisToken: z.string().min(1).optional(),
   blobToken: z.string().min(1).optional(),
-  /**
-   * Private by default: page images are photographs of someone's exam script,
-   * and a public store makes every page readable by anyone with the URL.
-   * Override only if the connected store is configured for public access.
-   */
+  /** Private: these are photos of someone's exam script. */
   blobAccess: z.enum(["private", "public"]).default("private"),
 });
 
@@ -111,12 +93,9 @@ export function getConfig(): Config {
 }
 
 /**
- * Finds Redis credentials under either name Vercel might inject.
- *
- * The Marketplace Upstash integration sets `UPSTASH_REDIS_REST_*`, while the
- * older Vercel KV product sets `KV_REST_API_*`. Which one you get depends on
- * how the store was added, and discovering that during a deploy is a waste of
- * an afternoon, so both are accepted.
+ * Vercel injects `UPSTASH_REDIS_REST_*` via the Marketplace integration and
+ * `KV_REST_API_*` via the older KV product, depending on how the store was
+ * added. Accept both rather than find out mid-deploy.
  */
 export function resolveRedisCredentials(
   env: Record<string, string | undefined>,
@@ -139,15 +118,9 @@ export function resolveRedisCredentials(
 }
 
 /**
- * Gathers API keys from the three shapes people actually use, in order:
- *
- *   GEMINI_API_KEY          a single key
- *   GEMINI_API_KEYS         comma-separated list
- *   GEMINI_API_KEY_1..N     one per line, which is how they arrive from the
- *                           AI Studio console
- *
- * Duplicates are removed so a key listed twice does not get double the share of
- * traffic and hit its quota twice as fast.
+ * Reads keys from `GEMINI_API_KEY`, `GEMINI_API_KEYS` (comma-separated) or
+ * `GEMINI_API_KEY_1..N`. Deduplicated, so a key listed twice doesn't take a
+ * double share of traffic.
  */
 export function collectApiKeys(
   env: Record<string, string | undefined>,

@@ -1,7 +1,4 @@
-import {
-  labelPathsEqual,
-  parseLabel,
-} from "@/lib/pipeline/labels";
+import { labelPathsEqual, parseLabel } from "@/lib/pipeline/labels";
 import type { AnswerBlock, Mapping, Question } from "@/lib/types";
 
 /**
@@ -56,10 +53,7 @@ const sameLabel = (a: string, b: string): boolean => {
 const ratio = (hit: number, total: number): number =>
   total === 0 ? 1 : hit / total;
 
-export function scoreRun(
-  truth: GroundTruth,
-  actual: ActualResult,
-): Metric[] {
+export function scoreRun(truth: GroundTruth, actual: ActualResult): Metric[] {
   return [
     questionRecall(truth, actual),
     questionPrecision(truth, actual),
@@ -99,7 +93,8 @@ function questionRecall(truth: GroundTruth, actual: ActualResult): Metric {
 function questionPrecision(truth: GroundTruth, actual: ActualResult): Metric {
   const failures = actual.questions
     .filter(
-      (q) => !truth.questions.some((expected) => sameLabel(q.label, expected.label)),
+      (q) =>
+        !truth.questions.some((expected) => sameLabel(q.label, expected.label)),
     )
     .map((q) => `extra question "${q.label}"`);
 
@@ -130,7 +125,10 @@ function orderingAccuracy(truth: GroundTruth, actual: ActualResult): Metric {
   expectedOrder.forEach((label, index) => {
     const at = actualOrder[index];
     if (at !== undefined && sameLabel(at, label)) correct += 1;
-    else failures.push(`position ${index + 1}: expected ${label}, got ${at ?? "nothing"}`);
+    else
+      failures.push(
+        `position ${index + 1}: expected ${label}, got ${at ?? "nothing"}`,
+      );
   });
 
   return {
@@ -281,7 +279,8 @@ function orphanDetection(truth: GroundTruth, actual: ActualResult): Metric {
 
   // A forced match is as wrong as a missed one, so count extras too.
   const extra = orphanIds.length - truth.orphanAnswers.length;
-  if (extra > 0) failures.push(`${extra} more unmatched answer(s) than expected`);
+  if (extra > 0)
+    failures.push(`${extra} more unmatched answer(s) than expected`);
 
   return {
     name: "Unmatched answers",

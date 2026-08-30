@@ -1,12 +1,8 @@
 /**
- * Verifies storage configuration by actually using it.
+ * Reports which backend each interface resolved to, then round-trips both.
  *
- *   npm run check:storage
- *
- * Reports which backend each interface resolved to, then performs a real
- * round-trip through both. Checking that a variable is merely *set* proves
- * nothing: a wrong token, a deleted store or a paused database all look fine
- * until the first write.
+ * A variable being set proves nothing: a wrong token, a deleted store or a
+ * paused database all look fine until the first write.
  */
 import { randomUUID } from "node:crypto";
 
@@ -14,7 +10,8 @@ import { getConfig, resolveRedisCredentials } from "@/lib/config";
 import { getFileStore, getSessionStore } from "@/lib/store";
 import type { SessionResult } from "@/lib/types";
 
-const tick = (ok: boolean) => (ok ? "\x1b[32mOK\x1b[0m  " : "\x1b[31mFAIL\x1b[0m");
+const tick = (ok: boolean) =>
+  ok ? "\x1b[32mOK\x1b[0m  " : "\x1b[31mFAIL\x1b[0m";
 
 async function main(): Promise<void> {
   const config = getConfig();
@@ -26,7 +23,9 @@ async function main(): Promise<void> {
 
   console.log("\nResolved configuration");
   console.log("──────────────────────────────────────────────");
-  console.log(`  platform      ${onVercel ? "Vercel" : "local or single server"}`);
+  console.log(
+    `  platform      ${onVercel ? "Vercel" : "local or single server"}`,
+  );
   console.log(`  sessions      ${sessionBackend}`);
   console.log(`  page images   ${fileBackend}`);
   if (redisUrl) console.log(`  redis host    ${new URL(redisUrl).host}`);
@@ -52,7 +51,6 @@ async function main(): Promise<void> {
   const sessionId = `checkstorage-${randomUUID().slice(0, 8)}`;
   let ok = true;
 
-  // Sessions: write, read back, mutate, confirm the mutation landed.
   try {
     const sessions = getSessionStore();
     const seed: SessionResult = {
@@ -69,7 +67,8 @@ async function main(): Promise<void> {
 
     await sessions.create(seed);
     const readBack = await sessions.get(sessionId);
-    if (readBack?.sessionId !== sessionId) throw new Error("read-back mismatch");
+    if (readBack?.sessionId !== sessionId)
+      throw new Error("read-back mismatch");
 
     const updated = await sessions.update(sessionId, (current) => ({
       ...current,
@@ -86,7 +85,6 @@ async function main(): Promise<void> {
     );
   }
 
-  // Files: store a small payload and read the identical bytes back.
   try {
     const files = getFileStore();
     const payload = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
@@ -103,7 +101,9 @@ async function main(): Promise<void> {
       );
     }
     await files.deleteSession(sessionId);
-    console.log(`  ${tick(true)} page images: write and read back identical bytes`);
+    console.log(
+      `  ${tick(true)} page images: write and read back identical bytes`,
+    );
   } catch (error) {
     ok = false;
     console.log(

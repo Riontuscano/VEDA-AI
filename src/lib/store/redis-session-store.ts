@@ -5,17 +5,12 @@ import type { SessionResult } from "@/lib/types";
 import type { SessionStore } from "./types";
 
 /**
- * Session store backed by Upstash Redis.
+ * Sessions in Redis, for serverless where each request may land on a different
+ * instance.
  *
- * Exists because serverless deployment breaks the in-memory store: each request
- * may land on a different instance, so a session written by the upload handler
- * would be missing from the next status poll. This is the same interface, so no
- * pipeline code changes.
- *
- * Updates use optimistic concurrency rather than a lock. Instances cannot share
- * an in-process mutex, and a session is only ever written by its own pipeline
- * plus the occasional status read, so contention is low and a retry loop is
- * cheaper and simpler than a distributed lock.
+ * Updates use optimistic concurrency, not a lock: instances can't share a
+ * mutex, and contention here is low enough that a retry loop beats a
+ * distributed lock.
  */
 export class RedisSessionStore implements SessionStore {
   constructor(
@@ -39,11 +34,8 @@ export class RedisSessionStore implements SessionStore {
       this.key(sessionId),
     );
     if (raw === null || raw === undefined) return null;
-    // Upstash deserializes JSON automatically, but returns a string when the
-    // value was stored by something that did not. Handle both.
-    return typeof raw === "string"
-      ? (JSON.parse(raw) as SessionResult)
-      : raw;
+    // Upstash usually deserializes JSON, but not always. Handle both.
+    return typeof raw === "string" ? (JSON.parse(raw) as SessionResult) : raw;
   }
 
   async update(
@@ -58,8 +50,8 @@ export class RedisSessionStore implements SessionStore {
 
       const next = mutate(current);
 
-      // Guard on the value we read. If another writer got in first, the stored
-      // JSON no longer matches and we re-read rather than clobbering it.
+      // If another writer got in first the stored JSON won't match, so we
+      // re-read instead of clobbering.
       const applied = await this.compareAndSet(
         this.key(sessionId),
         JSON.stringify(current),
@@ -78,15 +70,12 @@ export class RedisSessionStore implements SessionStore {
   }
 
   /**
-   * Set only if the current value is unchanged, refreshing the TTL.
+   * Set only if unchanged, refreshing the TTL. One Lua script so the check and
+   * write are atomic; a client-side get-then-set leaves a lost-update window.
    *
-   * Done as a Lua script so the check and the write are one atomic operation;
-   * a get-then-set from the client would leave a window for a lost update.
-   *
-   * Note this is Redis `EVAL`, which runs Lua inside the Redis server, not
-   * JavaScript `eval`. The script is a fixed constant and never built from
-   * input: the key and both values are passed as `KEYS` and `ARGV`, which is
-   * the mechanism that makes Redis scripting injection-safe.
+   * This is Redis EVAL (server-side Lua), not JavaScript eval. The script is a
+   * fixed constant and all data goes through KEYS/ARGV, which is what makes
+   * Redis scripting injection-safe.
    */
   private async compareAndSet(
     key: string,

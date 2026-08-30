@@ -1,9 +1,6 @@
 /**
- * Structured JSON logging.
- *
- * One JSON object per line, every pipeline log tagged with `sessionId` via
- * `logger.child({ sessionId })`, so a failed extraction is reconstructable
- * after the fact instead of by re-running it.
+ * One JSON object per line, tagged with `sessionId` via `logger.child()`, so a
+ * failed extraction can be reconstructed from logs rather than re-run.
  */
 
 type Level = "debug" | "info" | "warn" | "error";

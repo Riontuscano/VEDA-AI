@@ -4,16 +4,11 @@ import type { AnswerBlock } from "@/lib/types";
 import { labelPathsEqual, parseLabel } from "./labels";
 
 /**
- * Joins answer blocks that are one answer split across a page break.
+ * Joins an answer split across a page break.
  *
- * The dominant real case is a student who simply keeps writing on the next
- * page with no label at all — so the primary signal is "first block on its
- * page, unlabelled, and the model judged it a continuation". Repeating the
- * label on the continuation page is the rarer case and is handled as a
- * secondary rule.
- *
- * Pure, so every branch is covered by fixtures rather than by re-running the
- * model on a multi-page sheet.
+ * The common case is a student who just keeps writing with no label, so that
+ * is the primary rule. Repeating the label on the next page is rarer and
+ * handled second.
  */
 export function mergeAnswerBlocks(blocks: PageAnswerBlock[]): AnswerBlock[] {
   const ordered = [...blocks].sort((a, b) => {
@@ -37,9 +32,8 @@ export function mergeAnswerBlocks(blocks: PageAnswerBlock[]): AnswerBlock[] {
     const continues =
       tail !== undefined &&
       tailPage !== null &&
-      // A continuation belongs to an answer started on an *earlier* page.
-      // Without this, a model that sets the flag on a mid-page block would
-      // swallow a genuinely separate answer.
+      // Must continue an answer from an earlier page. Without this, a stray
+      // flag on a mid-page block swallows a separate answer.
       tailPage < block.page &&
       (continuesUnlabelled(block, isFirstOnPage) || repeatsLabel(block, tail));
 
@@ -53,8 +47,7 @@ export function mergeAnswerBlocks(blocks: PageAnswerBlock[]): AnswerBlock[] {
       ...tail,
       text: [tail.text, block.text].filter(Boolean).join("\n"),
       boxes: [...tail.boxes, ...block.boxes],
-      // A merged answer is only as legible as its least legible part; taking
-      // the max would overstate confidence in the joined transcription.
+      // A merged answer is only as legible as its worst part.
       confidence: Math.min(tail.confidence, block.confidence),
     };
     tailPage = block.page;

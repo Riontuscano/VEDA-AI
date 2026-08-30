@@ -1,9 +1,6 @@
 /**
- * Typed errors.
- *
- * Every failure crossing a boundary (upload, model call, pipeline stage)
- * becomes one of these, so route handlers can map to an HTTP status and the
- * UI can show a real message instead of a stuck spinner or a raw 500.
+ * Every failure crossing a boundary becomes one of these, so routes can map to
+ * a status and the UI can show a real message instead of a stuck spinner.
  */
 
 export type ErrorStage =
@@ -21,15 +18,9 @@ export type AppErrorOptions = {
   httpStatus?: number;
   /** Whether retrying the same call could plausibly succeed. */
   retryable?: boolean;
-  /**
-   * HTTP status reported by an upstream service. 429 and 503 mean "overloaded,
-   * come back later" and deserve a much longer backoff than a generic failure.
-   */
+  /** Upstream HTTP status. Drives whether we rotate keys or back off. */
   upstreamStatus?: number;
-  /**
-   * The API key the failed call went out on, so a quota failure can sideline
-   * that specific key. Never logged or serialized.
-   */
+  /** Which key the failed call used, so quota failures sideline just that one. */
   apiKey?: string;
   cause?: unknown;
 };
@@ -53,24 +44,18 @@ export class AppError extends Error {
     this.apiKey = options.apiKey;
   }
 
-  /**
-   * Quota exhausted or credentials rejected: specific to the key used, so
-   * another key may well succeed right now.
-   */
+  /** Specific to the key used, so another key may succeed right now. */
   get isKeyExhausted(): boolean {
     return this.upstreamStatus === 429 || this.upstreamStatus === 403;
   }
 
-  /**
-   * The model itself is busy. Every key shares that, so rotating would burn
-   * the pool without helping. Wait instead.
-   */
+  /** Every key shares this, so rotating won't help. Wait instead. */
   get isUpstreamOverloaded(): boolean {
     return this.upstreamStatus === 503 || this.upstreamStatus === 500;
   }
 }
 
-/** Bad client input — file type, size, page count. Never retryable. */
+/** Bad client input: file type, size, page count. Never retryable. */
 export class ValidationError extends AppError {
   constructor(message: string, options: AppErrorOptions = {}) {
     super(message, {
@@ -93,7 +78,7 @@ export class NotFoundError extends AppError {
   }
 }
 
-/** The model API itself failed — network, rate limit, 5xx. Usually retryable. */
+/** The model API failed: network, rate limit, 5xx. Usually retryable. */
 export class ModelError extends AppError {
   constructor(message: string, options: AppErrorOptions = {}) {
     super(message, {
@@ -105,10 +90,7 @@ export class ModelError extends AppError {
   }
 }
 
-/**
- * The model responded, but the payload did not match the expected schema.
- * Retryable exactly once with a corrective prompt — see `src/lib/ai/client.ts`.
- */
+/** Responded, but the payload failed validation. Worth one corrective retry. */
 export class SchemaError extends AppError {
   constructor(message: string, options: AppErrorOptions = {}) {
     super(message, {

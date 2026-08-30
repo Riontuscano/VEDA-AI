@@ -6,12 +6,7 @@ import type { SessionStatusPayload } from "@/lib/types";
 
 import { errorResponse } from "../../../_lib/respond";
 
-/**
- * Polled by the upload screen while the pipeline runs.
- *
- * Deliberately small — no questions, answers or mappings — so polling every
- * second stays cheap regardless of document size.
- */
+/** Deliberately small, so polling every second stays cheap. */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },

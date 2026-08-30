@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  formatLabel,
-  labelPathsEqual,
-  labelToId,
-  parseLabel,
-} from "./labels";
+import { formatLabel, labelPathsEqual, labelToId, parseLabel } from "./labels";
 
 describe("parseLabel", () => {
   it("parses a plain number", () => {

@@ -3,24 +3,20 @@
 import type * as PdfJs from "pdfjs-dist";
 
 /**
- * Turns whatever the user picked — PDFs, photos, or a mix — into a uniform
- * array of page images.
+ * Turns PDFs, photos, or a mix into a uniform array of page images.
  *
- * Runs in the browser on purpose. Rasterizing server-side needs native canvas
- * or poppler bindings, which are the most common deployment failure in this
- * kind of app; the browser already has a rendering engine. It also means the
- * bytes the model reads are exactly the bytes the viewer displays, so returned
- * bounding boxes line up with what the user sees by construction.
+ * In the browser on purpose: server-side rasterizing needs native canvas or
+ * poppler bindings, a common deployment failure, and the browser already has a
+ * rendering engine. It also makes the bytes the model reads identical to the
+ * ones the viewer shows, so boxes line up by construction.
  */
 
 let pdfjsPromise: Promise<typeof PdfJs> | null = null;
 
 /**
- * Loads pdf.js on first use rather than at module scope.
- *
- * Its canvas module touches `DOMMatrix` while evaluating, which does not exist
- * in Node — a static import crashes the server prerender of any page that
- * reaches this file, even though the code only ever runs in the browser.
+ * Loaded on first use, not at module scope: pdf.js touches `DOMMatrix` while
+ * evaluating, which doesn't exist in Node, and a static import crashes the
+ * server prerender of any page reaching this file.
  */
 function loadPdfJs(): Promise<typeof PdfJs> {
   pdfjsPromise ??= import("pdfjs-dist").then((module) => {
@@ -31,11 +27,8 @@ function loadPdfJs(): Promise<typeof PdfJs> {
 }
 
 /**
- * Longest side of a rendered page, in pixels.
- *
- * Handwriting stays comfortably legible at this size, while keeping uploads and
- * model requests small — the model downsamples large images anyway, so sending
- * more pixels costs time and quota without improving transcription.
+ * Longest side of a rendered page. Handwriting stays legible, and the model
+ * downsamples anyway, so more pixels cost time and quota for nothing.
  */
 const MAX_EDGE = 1600;
 
@@ -103,8 +96,7 @@ async function rasterizePdf(file: File): Promise<RasterizedPage[]> {
     }
     return pages;
   } finally {
-    // Tears down the worker's copy of the document; without this a large PDF
-    // stays in memory for the life of the tab.
+    // Without this a large PDF stays in memory for the life of the tab.
     await loadingTask.destroy();
   }
 }
@@ -116,9 +108,9 @@ async function renderPdfPage(
   const page = await pdf.getPage(pageNumber);
   const baseViewport = page.getViewport({ scale: 1 });
 
-  // PDF pages are vector content, so rendering above 1x yields real detail
-  // rather than interpolation — unlike the photo path below, which must never
-  // upscale. Capped so a tiny page cannot request an enormous canvas.
+  // Vector content, so rendering above 1x gives real detail, unlike the photo
+  // path below which must never upscale. Capped so a tiny page can't ask for
+  // an enormous canvas.
   const scale = Math.min(
     MAX_EDGE / Math.max(baseViewport.width, baseViewport.height),
     4,
@@ -134,8 +126,7 @@ async function renderPdfPage(
     throw new RasterizeError("Could not get a 2D canvas context.");
   }
 
-  // White background: PDF pages are transparent, and transparent-on-black is
-  // unreadable for both the model and the viewer.
+  // PDF pages are transparent, and transparent-on-black is unreadable.
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
 

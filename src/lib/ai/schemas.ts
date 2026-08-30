@@ -1,19 +1,12 @@
 import { z } from "zod";
 
 /**
- * Schemas for *raw* model output — deliberately separate from the domain types
- * in `src/lib/types.ts`.
+ * Schemas for raw model output, separate from the domain types.
  *
- * These describe what the model is asked to emit; the adapter validates against
- * them and then coerces into domain shapes. Two rules keep the schemas
- * compatible with Gemini's structured-output dialect:
- *
- *  1. No optional fields and no nullable types. Every field is required, and
- *     the prompt states the sentinel value to use when something is unknown
- *     (empty string). Union types are the most common cause of a rejected
- *     response schema.
- *  2. Fixed-length arrays use `.length()` rather than tuples, which serialize
- *     to `minItems`/`maxItems` instead of `prefixItems`.
+ * Two rules keep these compatible with Gemini's structured-output dialect:
+ * no optional or nullable fields (unions are the usual cause of a rejected
+ * schema; the prompt states a sentinel instead), and fixed-length arrays use
+ * `.length()` so they serialize to minItems/maxItems, not prefixItems.
  */
 
 /** `[ymin, xmin, ymax, xmax]`, normalized to 0..1000. See `geometry.ts`. */
@@ -36,12 +29,7 @@ export const RawAnswerSchema = z.object({
   text: z.string(),
   box_2d: Box2d,
   confidence: z.number(),
-  /**
-   * True when this block visually continues an answer from the previous page:
-   * it starts at the top of the page and carries no label of its own. Drives
-   * the multi-page merge, which is why the model is asked directly rather than
-   * having the merge infer it from position alone.
-   */
+  /** Drives the multi-page merge. Asked directly rather than inferred. */
   continues_previous_page: z.boolean(),
 });
 
@@ -64,10 +52,7 @@ export type RawQuestion = z.infer<typeof RawQuestionSchema>;
 export type RawAnswer = z.infer<typeof RawAnswerSchema>;
 export type RawMatch = z.infer<typeof RawMatchSchema>;
 
-/**
- * Gemini rejects the JSON Schema metadata that Zod emits by default, so strip
- * it before sending. Kept here beside the schemas it applies to.
- */
+/** Gemini rejects the metadata Zod emits by default, so strip it. */
 export function toModelSchema(schema: z.ZodType): Record<string, unknown> {
   const jsonSchema = z.toJSONSchema(schema, { target: "draft-7" }) as Record<
     string,

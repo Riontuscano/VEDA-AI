@@ -7,7 +7,11 @@ import { formatLabel, labelToId, parseLabel } from "@/lib/pipeline/labels";
 import type { Question } from "@/lib/types";
 
 import { computeCacheKey, type ResponseCache } from "./cache";
-import { fromGeminiBox, pageFallbackBox, readingOrderCompare } from "./geometry";
+import {
+  fromGeminiBox,
+  pageFallbackBox,
+  readingOrderCompare,
+} from "./geometry";
 import type { KeyPool } from "./key-pool";
 import type { Limiter } from "./limiter";
 import {
@@ -32,7 +36,7 @@ import type {
   PageImage,
 } from "./provider";
 
-/** Keeps the match-inference prompt well inside a sane token budget. */
+/** Keeps the inference prompt inside a sane token budget. */
 const QUESTION_TEXT_BUDGET = 400;
 const ANSWER_TEXT_BUDGET = 800;
 
@@ -76,25 +80,24 @@ export class GeminiProvider implements AiProvider {
       });
 
       return result.questions.map((raw, indexOnPage) => {
-          const box = fromGeminiBox(raw.box_2d, page.index);
-          if (!box) {
-            log.warn("Question box unusable, falling back to full page", {
-              page: page.index,
-              label: raw.label,
-              rawBox: raw.box_2d,
-            });
-          }
-
-          const path = parseLabel(raw.label);
-          return {
-            // Unparseable labels still describe a real question, so they are
-            // kept with a positional id rather than dropped.
-            id: path ? labelToId(path) : `q-p${page.index}-${indexOnPage}`,
-            labelPath: path ?? [],
-            label: path ? formatLabel(path) : raw.label.trim() || "(unlabelled)",
-            text: raw.text.trim(),
-            order: 0,
+        const box = fromGeminiBox(raw.box_2d, page.index);
+        if (!box) {
+          log.warn("Question box unusable, falling back to full page", {
             page: page.index,
+            label: raw.label,
+            rawBox: raw.box_2d,
+          });
+        }
+
+        const path = parseLabel(raw.label);
+        return {
+          // Still a real question, so keep it with a positional id.
+          id: path ? labelToId(path) : `q-p${page.index}-${indexOnPage}`,
+          labelPath: path ?? [],
+          label: path ? formatLabel(path) : raw.label.trim() || "(unlabelled)",
+          text: raw.text.trim(),
+          order: 0,
+          page: page.index,
           box: box ?? pageFallbackBox(page.index),
         } satisfies Question;
       });
@@ -146,12 +149,8 @@ export class GeminiProvider implements AiProvider {
   }
 
   /**
-   * Runs a per-page extraction, isolating failures.
-   *
-   * Uses `allSettled` rather than `all`: pages are independent calls, and one
-   * page hitting an overloaded server must not throw away every page that
-   * succeeded. A page that exhausts its retries becomes a reported failure, not
-   * a dead run.
+   * `allSettled`, not `all`: pages are independent calls, and one page hitting
+   * an overloaded server must not discard the pages that succeeded.
    */
   private async mapPages<T>(
     pages: PageImage[],
@@ -215,25 +214,25 @@ export class GeminiProvider implements AiProvider {
     const questionIds = new Set(questions.map((q) => q.id));
     const answerIds = new Set(answers.map((a) => a.id));
 
-    return result.matches
-      // The model occasionally echoes ids it was not given; those would create
-      // mappings pointing at nothing, so they are dropped rather than trusted.
-      .filter((match) => answerIds.has(match.answer_id))
-      .map((match) => ({
-        answerBlockId: match.answer_id,
-        questionId: questionIds.has(match.question_id)
-          ? match.question_id
-          : null,
-        confidence: clamp01(match.confidence),
-      }));
+    return (
+      result.matches
+        // The model occasionally echoes ids it was not given; those would create
+        // mappings pointing at nothing, so they are dropped rather than trusted.
+        .filter((match) => answerIds.has(match.answer_id))
+        .map((match) => ({
+          answerBlockId: match.answer_id,
+          questionId: questionIds.has(match.question_id)
+            ? match.question_id
+            : null,
+          confidence: clamp01(match.confidence),
+        }))
+    );
   }
 
   /**
-   * Single model call returning schema-validated JSON.
-   *
-   * Layers, outermost first: response cache, concurrency limiter, retry with
-   * backoff for transport failures, and one corrective retry when the payload
-   * parses as JSON but fails the schema.
+   * One model call returning schema-validated JSON. Layers outermost first:
+   * cache, concurrency limiter, backoff retry, and one corrective retry when
+   * the payload parses but fails the schema.
    */
   private async callJson<T>(args: {
     prompt: string;
@@ -261,21 +260,15 @@ export class GeminiProvider implements AiProvider {
         log.debug("Model cache hit", { operation });
         return parsed.value;
       }
-      // A cache entry that no longer validates means the schema changed; fall
-      // through to a live call and overwrite it.
+      // Schema changed since this was cached. Overwrite it.
       log.warn("Discarding stale cache entry", { operation });
     }
 
     let corrective = "";
     let attempt = 0;
-    /**
-     * Rotations get their own budget, separate from `attempt`.
-     *
-     * Moving to a different key after a quota rejection is not a retry of the
-     * same failing call: nothing has been waited on and nothing has been
-     * re-sent to a server that just refused. Charging rotations against the
-     * retry budget means a pool of ten keys gives up after trying two.
-     */
+    // Rotations get their own budget. Moving to a different key isn't a retry
+    // of the same call, and charging it as one made a pool of ten give up
+    // after two.
     let rotations = 0;
     const maxRotations = this.deps.keys.size;
 
@@ -301,13 +294,9 @@ export class GeminiProvider implements AiProvider {
         });
         return parsed.value;
       } catch (error) {
-        // Rotation is considered before the retry budget, because a spent
-        // retry budget says nothing about whether a different key would work.
-        //
-        // A quota or credential failure belongs to one key, not to the model.
-        // Sideline that key and go straight to the next one: waiting would not
-        // help, and the whole point of a key pool is that the next call can go
-        // out immediately.
+        // Checked before the retry budget: a spent budget says nothing about
+        // whether a different key would work. Quota and credential failures
+        // belong to one key, so waiting doesn't help.
         if (
           error instanceof ModelError &&
           error.isKeyExhausted &&
@@ -410,8 +399,7 @@ export class GeminiProvider implements AiProvider {
 
     const text = response.text;
     if (!text) {
-      // Usually a safety block or a truncated response; both are worth one
-      // retry, so this is a ModelError rather than a hard failure.
+      // Usually a safety block or truncation. Both are worth a retry.
       throw new ModelError("Model returned an empty response");
     }
     return text;
@@ -419,10 +407,8 @@ export class GeminiProvider implements AiProvider {
 }
 
 /**
- * Assigns printed reading order and removes duplicate ids.
- *
- * Order comes from page and box position, never from the model — per-page calls
- * have no shared view of the document and their own ordering is not consistent.
+ * Assigns printed reading order and drops duplicate ids. Order comes from box
+ * position: per-page calls have no shared view of the document.
  */
 function finalizeQuestions(questions: Question[], log: Logger): Question[] {
   const sorted = [...questions].sort((a, b) =>
@@ -447,9 +433,7 @@ function finalizeQuestions(questions: Question[], log: Logger): Question[] {
   return unique;
 }
 
-type ParseOutcome<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: string };
+type ParseOutcome<T> = { ok: true; value: T } | { ok: false; error: string };
 
 function safeParseJson<T>(schema: z.ZodType<T>, text: string): ParseOutcome<T> {
   let json: unknown;
@@ -481,11 +465,9 @@ function truncate(text: string, limit: number): string {
 }
 
 /**
- * Exponential backoff with jitter, so parallel pages do not retry in lockstep.
- *
- * An overloaded upstream (429/503) gets a much longer base delay. Retrying a
- * busy server after half a second just produces three fast failures — which is
- * exactly what a 503 on this pipeline used to look like.
+ * Jittered backoff so parallel pages don't retry in lockstep. An overloaded
+ * upstream waits far longer: retrying a busy server after half a second just
+ * produces three fast failures.
  */
 function backoffMs(attempt: number, overloaded = false): number {
   const base = overloaded ? 4000 : 500;
@@ -493,7 +475,7 @@ function backoffMs(attempt: number, overloaded = false): number {
   return 2 ** attempt * base + jitter;
 }
 
-/** Digs the HTTP status out of the SDK's error, which stringifies a JSON body. */
+/** The SDK stringifies a JSON body into the message. */
 function extractUpstreamStatus(error: unknown): number | undefined {
   const status = (error as { status?: unknown })?.status;
   if (typeof status === "number") return status;

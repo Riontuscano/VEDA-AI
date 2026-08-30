@@ -10,12 +10,9 @@ import { FilePicker } from "./FilePicker";
 import { Button } from "./ui/primitives";
 
 /**
- * Upload screen.
- *
- * Rasterizing happens here in the browser, so the busy state covers real work
- * and not just a network wait. Once the session exists the user is sent to its
- * page, which owns pipeline progress, keeping the session URL shareable and
- * reloadable while processing runs.
+ * Rasterizing happens in the browser, so the busy state covers real work and
+ * not just a network wait. Once the session exists the user is sent to its
+ * page, which keeps the URL shareable while processing runs.
  */
 export function UploadForm() {
   const router = useRouter();

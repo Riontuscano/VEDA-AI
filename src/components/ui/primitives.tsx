@@ -1,12 +1,5 @@
 import type { ReactNode } from "react";
 
-/**
- * Shared primitives.
- *
- * Deliberately small: this is a dense tool, so most grouping is done with
- * hairlines and spacing rather than nested card containers.
- */
-
 type ChipTone = "neutral" | "positive" | "highlight" | "danger" | "accent";
 
 const CHIP_TONES: Record<ChipTone, string> = {
@@ -20,10 +13,6 @@ const CHIP_TONES: Record<ChipTone, string> = {
   accent: "text-[var(--accent)] border-transparent bg-[var(--accent-wash)]",
 };
 
-/**
- * Status label. Always carries its own words, so meaning never depends on the
- * colour alone.
- */
 export function Chip({
   tone = "neutral",
   children,
@@ -73,7 +62,6 @@ export function Button({
   );
 }
 
-/** Small uppercase mono label for column headers and metadata. */
 export function FieldLabel({ children }: { children: ReactNode }) {
   return (
     <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--text-tertiary)]">

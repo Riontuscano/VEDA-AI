@@ -11,12 +11,7 @@ import type {
 
 import { errorResponse } from "../../../_lib/respond";
 
-/**
- * Full result for the viewer.
- *
- * Storage keys are replaced with page URLs so nothing about the server's
- * filesystem layout reaches the client.
- */
+/** Storage keys become page URLs, so storage layout never reaches the client. */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -31,8 +26,16 @@ export async function GET(
     const payload: SessionResultPayload = {
       sessionId: session.sessionId,
       status: session.status,
-      questionPages: toPageViews(session.sessionId, "question_paper", session.questionPages),
-      answerPages: toPageViews(session.sessionId, "answer_sheet", session.answerPages),
+      questionPages: toPageViews(
+        session.sessionId,
+        "question_paper",
+        session.questionPages,
+      ),
+      answerPages: toPageViews(
+        session.sessionId,
+        "answer_sheet",
+        session.answerPages,
+      ),
       questions: session.questions,
       answers: session.answers,
       mappings: session.mappings,

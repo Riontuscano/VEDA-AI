@@ -1,10 +1,6 @@
 /**
- * Verifies every key in the pool before a demo or a deploy.
- *
- *   npm run check:keys
- *
- * Sends one trivial call per key. Prints only the last four characters of each
- * key, never the key itself, so the output is safe to paste anywhere.
+ * One trivial call per key, to check the pool before a demo or deploy. Prints
+ * only the last four characters, so the output is safe to paste anywhere.
  */
 import { GoogleGenAI } from "@google/genai";
 
@@ -34,10 +30,14 @@ async function main(): Promise<void> {
         config: { temperature: 0, thinkingConfig: { thinkingBudget: 0 } },
       });
       healthy += 1;
-      console.log(`  ${label}  OK    ${JSON.stringify(response.text?.trim().slice(0, 10))}`);
+      console.log(
+        `  ${label}  OK    ${JSON.stringify(response.text?.trim().slice(0, 10))}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.log(`  ${label}  FAIL  ${message.replace(/\s+/g, " ").slice(0, 90)}`);
+      console.log(
+        `  ${label}  FAIL  ${message.replace(/\s+/g, " ").slice(0, 90)}`,
+      );
     }
   }
 

@@ -1,20 +1,12 @@
-/**
- * Shared domain contracts.
- *
- * Every pipeline stage, API route and UI component is written against these
- * types — never against raw model output. Raw AI responses are validated and
- * coerced into these shapes at the adapter boundary (see `src/lib/ai`).
- */
+// Every stage, route and component is written against these types, never
+// against raw model output. Coercion happens at the adapter boundary.
 
 /** Which of the two uploaded documents something belongs to. */
 export type DocumentKind = "question_paper" | "answer_sheet";
 
 /**
- * A rectangle on a page, normalized to 0..1 of that page's width/height.
- *
- * Normalized rather than pixel coordinates so the viewer can scale freely
- * (zoom, resize, different device pixel ratios) without any coordinate math
- * leaking out of the render layer.
+ * Normalized to 0..1 of the page, so the viewer can scale freely without
+ * coordinate math leaking out of the render layer.
  */
 export type BoundingBox = {
   /** 0-indexed page within its source document. */
@@ -25,10 +17,7 @@ export type BoundingBox = {
   h: number;
 };
 
-/**
- * Where a box came from. Drives both the fallback-ladder logging and the
- * "approximate location" badge in the UI.
- */
+/** Drives the "approximate location" badge and the fallback logging. */
 export type BoxSource = "model" | "page_fallback";
 
 export type LocatedBox = BoundingBox & { source: BoxSource };
@@ -46,19 +35,12 @@ export type PageRef = {
 export type Question = {
   /** Stable id derived from `labelPath`, e.g. "q-11-a-ii". */
   id: string;
-  /**
-   * Hierarchical question label, outermost first: `["11", "a", "ii"]`.
-   * A flat number/subPart pair cannot represent real papers, which nest
-   * arbitrarily deep.
-   */
+  /** Outermost first: `["11","a","ii"]`. Real papers nest arbitrarily deep. */
   labelPath: string[];
   /** Display form of `labelPath`, e.g. "11(a)(ii)". */
   label: string;
   text: string;
-  /**
-   * Printed reading order. Derived server-side from (page, box.y) — never
-   * taken from model output, which is inconsistent across per-page calls.
-   */
+  /** Derived from (page, box.y). Model-assigned order isn't consistent. */
   order: number;
   page: number;
   box: LocatedBox;
@@ -66,11 +48,7 @@ export type Question = {
 
 export type AnswerBlock = {
   id: string;
-  /**
-   * The label the student actually wrote, e.g. "Q11 a)". Null when the block
-   * is unlabelled (common on continuation pages). May be wrong or unparseable
-   * even when present — never trusted without parsing.
-   */
+  /** What the student wrote. Null when unlabelled, common on continuations. */
   rawLabel: string | null;
   /** Transcribed handwriting. */
   text: string;
@@ -80,11 +58,7 @@ export type AnswerBlock = {
   confidence: number;
 };
 
-export type MatchType =
-  | "labelled"
-  | "inferred"
-  | "positional"
-  | "unmatched";
+export type MatchType = "labelled" | "inferred" | "positional" | "unmatched";
 
 export type Mapping = {
   /** Null means this answer matches no question on the paper. */
@@ -129,10 +103,7 @@ export type SessionStatusPayload = {
   errors: PipelineError[];
 };
 
-/**
- * A page as the viewer sees it: dimensions for aspect-ratio layout and a URL
- * to fetch the image. Storage keys never leave the server.
- */
+/** What the viewer needs. Storage keys never leave the server. */
 export type PageView = {
   index: number;
   width: number;

@@ -15,22 +15,15 @@ import type { DocumentKind, PageRef, SessionResult } from "@/lib/types";
 import { errorResponse } from "../_lib/respond";
 
 /**
- * Creates a session from rasterized page images and starts the pipeline.
+ * Creates a session and starts the pipeline behind it.
  *
- * PDFs are rasterized in the browser, so this endpoint only ever handles
- * images — the server runs no PDF parser on untrusted input, and the page
- * images the model reads are byte-identical to the ones the viewer displays,
- * which is what makes bounding boxes line up.
- *
- * Returns as soon as the files are stored; the pipeline runs behind the
- * returned session id.
+ * PDFs are rasterized in the browser, so this only handles images. The bytes
+ * the model reads are the bytes the viewer shows, which is what makes bounding
+ * boxes line up without any coordinate translation.
  */
 
-/**
- * The pipeline runs after the response via `after()`, and on Vercel that work
- * counts toward this function's duration. A multi-page sheet takes tens of
- * seconds, so the default 15s would cut the run off partway through.
- */
+// The pipeline runs after the response, and on Vercel that counts toward this
+// function's duration. The default would cut a multi-page run off partway.
 export const maxDuration = 300;
 export const runtime = "nodejs";
 
@@ -66,7 +59,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       maxPageBytes: config.maxPageBytes,
       maxPagePixels: config.maxPagePixels,
     };
-    const questionTypes = validatePages("Question paper", questionPages, limits);
+    const questionTypes = validatePages(
+      "Question paper",
+      questionPages,
+      limits,
+    );
     const answerTypes = validatePages("Answer sheet", answerPages, limits);
 
     const sessionId = randomUUID();
@@ -185,8 +182,8 @@ async function storePages(
   return Promise.all(
     pages.map(async (page, index) => {
       const contentType = types[index] ?? "image/png";
-      // The name is generated, never taken from the upload, so there is nothing
-      // user-controlled anywhere near a filesystem path.
+      // Generated, never taken from the upload: nothing user-controlled goes
+      // near a storage path.
       const storageKey = await files.save(sessionId, `${kind}-${index}`, {
         bytes: page.bytes,
         contentType,

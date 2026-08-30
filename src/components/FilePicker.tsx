@@ -14,11 +14,8 @@ export type FilePickerProps = {
 };
 
 /**
- * File input for one of the two documents.
- *
  * Accepts a PDF or a set of images. Once files are chosen the drop target
- * collapses into a compact list, so the form does not keep two large empty
- * rectangles on screen after the work of choosing is done.
+ * collapses into a list, so the form isn't two big empty rectangles.
  */
 export function FilePicker({
   label,
@@ -80,7 +77,11 @@ export function FilePicker({
             onClick={openPicker}
             className="flex w-full cursor-pointer flex-col items-center gap-1.5 px-4 py-7 disabled:cursor-not-allowed"
           >
-            <Plus size={16} weight="bold" className="text-[var(--text-tertiary)]" />
+            <Plus
+              size={16}
+              weight="bold"
+              className="text-[var(--text-tertiary)]"
+            />
             <span className="text-[13px] text-[var(--text-secondary)]">
               Drop a PDF or images, or{" "}
               <span className="text-[var(--accent)]">browse</span>
@@ -96,9 +97,15 @@ export function FilePicker({
                 className="flex items-center gap-2.5 px-3 py-2"
               >
                 {file.type === "application/pdf" ? (
-                  <FilePdf size={15} className="shrink-0 text-[var(--text-tertiary)]" />
+                  <FilePdf
+                    size={15}
+                    className="shrink-0 text-[var(--text-tertiary)]"
+                  />
                 ) : (
-                  <FileImage size={15} className="shrink-0 text-[var(--text-tertiary)]" />
+                  <FileImage
+                    size={15}
+                    className="shrink-0 text-[var(--text-tertiary)]"
+                  />
                 )}
                 <span className="min-w-0 flex-1 truncate text-[13px]">
                   {file.name}

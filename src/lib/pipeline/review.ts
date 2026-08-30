@@ -1,18 +1,11 @@
 import type { AnswerBlock, Mapping, Question } from "@/lib/types";
 
 /**
- * Review prioritisation.
+ * Ranks rows by how likely the mapping is wrong, so checking 40 questions
+ * becomes checking the few the system is least sure about.
  *
- * The mapper is accurate but not perfect, so the useful question is not "is it
- * right?" but "where is it most likely wrong?". This ranks every row by how
- * much it deserves a human look, which turns checking 40 questions into
- * checking the 6 the system is least sure about.
- *
- * Each risk carries its own reason string. A score with no explanation would
- * just be a number the user has to trust; the reason is what makes it
- * actionable.
- *
- * Pure, so the ranking is unit-testable without a model call.
+ * Each risk carries a reason: a score with no explanation is just a number the
+ * user has to trust.
  */
 
 export type ReviewRisk = {
@@ -29,12 +22,7 @@ export type ReviewItem = {
   risk: ReviewRisk;
 };
 
-/**
- * Weights are ordered by how often each case turns out to be a genuine
- * mistake, judged from the failure modes seen in testing: content inference is
- * the least reliable step, an orphan answer is usually either a real orphan or
- * a mapping miss, and a labelled match with a clean box is almost always right.
- */
+/** Ordered by how often each case turned out to be a real mistake in testing. */
 const RISK = {
   orphanAnswer: 0.75,
   positionalMatch: 0.55,
@@ -74,9 +62,7 @@ export function buildReviewQueue(
     }
   }
 
-  // Stable within equal scores: the underlying arrays are already in printed
-  // order, so equally-risky rows stay in document order rather than shuffling
-  // between renders.
+  // Stable sort, so equally-risky rows keep document order between renders.
   return items
     .map((item, index) => ({ item, index }))
     .sort((a, b) =>
@@ -105,8 +91,8 @@ function assessQuestion(
   const risks: { score: number; reason: string }[] = [];
 
   if (mapping?.matchType === "inferred") {
-    // Inference read the answer's content rather than a label the student
-    // wrote, so its own confidence is the best signal available.
+    // No student-written label to lean on, so the model's own confidence is
+    // the best signal available.
     risks.push({
       score: 0.5 + (1 - mapping.confidence) * 0.45,
       reason: `Matched by reading the answer, ${Math.round(mapping.confidence * 100)}% confident`,
@@ -139,15 +125,13 @@ function assessQuestion(
 
   risks.sort((a, b) => b.score - a.score);
   return {
-    // Max rather than sum: two moderate doubts about the same row do not make
-    // it worse than one severe one, and summing would push ordinary rows above
-    // genuinely broken ones.
+    // Max, not sum: two moderate doubts shouldn't outrank one severe one.
     score: Math.min(1, risks[0]?.score ?? 0),
     reasons: risks.map((risk) => risk.reason),
   };
 }
 
-/** Rows worth a human look, used for the "N need review" count. */
+/** Threshold for the "N need review" count. */
 export const NEEDS_REVIEW_THRESHOLD = 0.3;
 
 export function countNeedingReview(items: readonly ReviewItem[]): number {

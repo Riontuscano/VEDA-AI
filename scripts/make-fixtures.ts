@@ -1,30 +1,17 @@
 /**
- * Generates test fixtures: a question paper and an answer sheet, as PDFs and
- * as rasterized PNG pages.
+ * Generates a question paper and answer sheet as PDFs and PNGs.
  *
- *   npm run fixtures
+ * The answer sheet is typed, so it exercises structure (ordering, page
+ * continuation, unanswered, orphans) but not handwriting legibility. Print the
+ * paper and answer it by hand for that.
  *
- * The answer sheet is *typed*, not handwritten, so it exercises the pipeline's
- * structure — ordering, page continuation, unanswered questions, orphan answers
- * — without depending on a scan. It deliberately does NOT test handwriting
- * legibility; that needs a real photographed sheet.
- *
- * The generated question paper is also meant to be printed and answered by hand
- * to produce that real fixture.
- *
- * Rasterization here uses a native canvas binding. That is a test-tooling
- * dependency only — the application rasterizes in the browser and never runs
- * this code path.
+ * Uses a native canvas binding, which is test tooling only: the app rasterizes
+ * in the browser and never runs this path.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import {
-  createCanvas,
-  DOMMatrix,
-  ImageData,
-  Path2D,
-} from "@napi-rs/canvas";
+import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 // pdf.js expects these as globals when rendering outside a browser.
@@ -64,14 +51,18 @@ async function buildPdf(pages: Line[][]): Promise<Uint8Array> {
   return pdf.save();
 }
 
-/** Six questions, two of them sub-parts of the same parent. */
+/** Six questions, two of them sub-parts of one parent. */
 function questionPaper(): Line[][] {
   return [
     [
       { text: "PHYSICS AND BIOLOGY — TERM TEST", size: 15, bold: true, gap: 4 },
       { text: "Time: 1 hour", size: 10, gap: 24 },
 
-      { text: "1. Define photosynthesis and name the pigment", size: 12, gap: 14 },
+      {
+        text: "1. Define photosynthesis and name the pigment",
+        size: 12,
+        gap: 14,
+      },
       { text: "    responsible for it.", size: 12, gap: 26 },
 
       { text: "2. State Newton's second law of motion.", size: 12, gap: 26 },
@@ -80,7 +71,11 @@ function questionPaper(): Line[][] {
       { text: "    (a) What is the SI unit of force?", size: 12, gap: 14 },
       { text: "    (b) Define one newton.", size: 12, gap: 26 },
 
-      { text: "4. Explain the function of the mitochondria.", size: 12, gap: 26 },
+      {
+        text: "4. Explain the function of the mitochondria.",
+        size: 12,
+        gap: 26,
+      },
 
       { text: "5. What is the chemical formula for water?", size: 12, gap: 26 },
     ],
@@ -88,41 +83,72 @@ function questionPaper(): Line[][] {
 }
 
 /**
- * A student's answers, arranged to hit every edge case at once:
- * answered out of order, an answer continuing onto page 2 with no label,
- * three questions never answered, and an answer to a question not on the paper.
+ * Hits every edge case at once: out of order, a continuation onto page 2 with
+ * no label, three unanswered, and an answer to a question not on the paper.
  */
 function answerSheet(): Line[][] {
   return [
     [
       { text: "Q3 (a)", size: 13, bold: true, gap: 10 },
-      { text: "The SI unit of force is the newton, written as N.", size: 12, gap: 30 },
+      {
+        text: "The SI unit of force is the newton, written as N.",
+        size: 12,
+        gap: 30,
+      },
 
       { text: "Q1", size: 13, bold: true, gap: 10 },
-      { text: "Photosynthesis is the process by which green plants", size: 12, gap: 8 },
-      { text: "convert light energy from the sun into chemical energy", size: 12, gap: 8 },
-      { text: "stored as glucose. It takes in carbon dioxide and water", size: 12, gap: 8 },
-      { text: "and releases oxygen as a by-product. The pigment", size: 12, gap: 8 },
+      {
+        text: "Photosynthesis is the process by which green plants",
+        size: 12,
+        gap: 8,
+      },
+      {
+        text: "convert light energy from the sun into chemical energy",
+        size: 12,
+        gap: 8,
+      },
+      {
+        text: "stored as glucose. It takes in carbon dioxide and water",
+        size: 12,
+        gap: 8,
+      },
+      {
+        text: "and releases oxygen as a by-product. The pigment",
+        size: 12,
+        gap: 8,
+      },
     ],
     [
-      // Continues question 1 with no label of its own — the common real case.
-      { text: "responsible for capturing the light is chlorophyll, which", size: 12, gap: 8 },
-      { text: "is found in the chloroplasts of the leaf cells.", size: 12, gap: 30 },
+      // Continues question 1 with no label: the common real case.
+      {
+        text: "responsible for capturing the light is chlorophyll, which",
+        size: 12,
+        gap: 8,
+      },
+      {
+        text: "is found in the chloroplasts of the leaf cells.",
+        size: 12,
+        gap: 30,
+      },
 
       { text: "Q5", size: 13, bold: true, gap: 10 },
       { text: "The chemical formula for water is H2O.", size: 12, gap: 30 },
 
       // No question 9 exists on the paper.
       { text: "Q9", size: 13, bold: true, gap: 10 },
-      { text: "The capital city of France is Paris, which lies on", size: 12, gap: 8 },
+      {
+        text: "The capital city of France is Paris, which lies on",
+        size: 12,
+        gap: 8,
+      },
       { text: "the river Seine.", size: 12, gap: 8 },
     ],
   ];
 }
 
-async function rasterize(pdfBytes: Uint8Array): Promise<
-  { png: Buffer; width: number; height: number }[]
-> {
+async function rasterize(
+  pdfBytes: Uint8Array,
+): Promise<{ png: Buffer; width: number; height: number }[]> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loadingTask = pdfjs.getDocument({
     data: pdfBytes,

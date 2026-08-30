@@ -27,13 +27,9 @@ export type PipelineDeps = {
 /**
  * Runs a session end to end.
  *
- * Stages are sequential rather than parallel so the reported status always
- * names exactly one thing in progress — the upload UI shows real per-stage
- * progress, and a failure points at one stage instead of two.
- *
- * Only extraction failures are fatal. Match inference is a refinement on top of
- * label matching, so when it fails the run continues with what the cheap passes
- * resolved and records a recovered error.
+ * Stages are sequential so the reported status names exactly one thing in
+ * progress and a failure points at one stage. Only extraction is fatal:
+ * inference is a refinement, so its failure is recorded and the run continues.
  */
 export async function runPipeline(
   sessionId: string,
@@ -109,8 +105,8 @@ export async function runPipeline(
       answerResult.failedPages,
     );
 
-    // Merging after the failure check, so a dropped page cannot silently look
-    // like an answer that simply ended early.
+    // After the failure check, so a dropped page can't look like an answer
+    // that simply ended early.
     const answers = mergeAnswerBlocks(answerResult.items);
     await patch(deps.sessions, sessionId, (current) => ({
       ...current,
@@ -147,7 +143,7 @@ export async function runPipeline(
       durationMs: Date.now() - startedAt,
     });
 
-    // Best-effort: if the session is already gone there is nobody to tell.
+    // Best effort: if the session is gone there's nobody to tell.
     await patch(deps.sessions, sessionId, (current) => ({
       ...current,
       status: "failed",
@@ -185,8 +181,7 @@ async function mapAnswers(
     try {
       inferred = await deps.provider.inferMatches(questions, remaining, log);
     } catch (error) {
-      // Degrading to "these answers are unmatched" is far better than failing
-      // the whole run, and the user still sees every label-matched answer.
+      // Better to leave these unmatched than to fail the whole run.
       const appError = toAppError(error, "mapping");
       log.warn("Match inference failed, continuing without it", {
         err: appError,
@@ -215,11 +210,8 @@ async function mapAnswers(
 }
 
 /**
- * Fails the run only when a document produced nothing at all.
- *
- * Losing one page of ten is a degraded result worth showing; losing every page
- * means there is no result, and pretending otherwise would present an empty
- * paper as a successful extraction.
+ * Losing one page of ten is a degraded result worth showing. Losing every page
+ * means there is no result, and showing an empty paper would be a lie.
  */
 function assertNotTotalFailure(
   failures: PageFailure[],
@@ -234,7 +226,7 @@ function assertNotTotalFailure(
   );
 }
 
-/** Records unreadable pages as recovered errors the UI surfaces to the user. */
+/** Unreadable pages become recovered errors the UI surfaces. */
 async function recordPageFailures(
   deps: PipelineDeps,
   sessionId: string,
@@ -271,7 +263,8 @@ async function stage<T>(
   } catch (error) {
     const appError = toAppError(error, "unknown");
     throw new AppError(appError.message, {
-      stage: appError.stage === "unknown" ? statusToStage(status) : appError.stage,
+      stage:
+        appError.stage === "unknown" ? statusToStage(status) : appError.stage,
       code: appError.code,
       httpStatus: appError.httpStatus,
       cause: appError,

@@ -17,7 +17,9 @@
     "fixtures": "tsx scripts/make-fixtures.ts",
     "check:keys": "tsx --env-file-if-exists=.env.local scripts/check-keys.ts",
     "eval": "tsx --env-file-if-exists=.env.local scripts/eval.ts",
-    "check:storage": "tsx --env-file-if-exists=.env.local scripts/check-storage.ts"
+    "check:storage": "tsx --env-file-if-exists=.env.local scripts/check-storage.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/*.ts\""
   },
   "dependencies": {
     "@google/genai": "^2.19.0",
@@ -39,6 +41,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "pdf-lib": "^1.17.1",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",

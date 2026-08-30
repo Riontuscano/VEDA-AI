@@ -1,10 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-/**
- * Application bar. Single line, 52px, present on every screen so the tool has
- * a consistent frame rather than three unrelated pages.
- */
+/** Single line, 52px, on every screen so the tool has one frame. */
 export function AppHeader({ children }: { children?: ReactNode }) {
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] px-4">
@@ -19,17 +16,15 @@ export function AppHeader({ children }: { children?: ReactNode }) {
       </Link>
 
       {children && (
-        <div className="ml-auto flex min-w-0 items-center gap-4">{children}</div>
+        <div className="ml-auto flex min-w-0 items-center gap-4">
+          {children}
+        </div>
       )}
     </header>
   );
 }
 
-/**
- * Wordmark: a page with a highlighted band across it. Two rects, drawn rather
- * than pulled from an icon set because it is a brand mark, not an interface
- * icon.
- */
+/** A page with a highlighted band. Drawn here because it's a mark, not an icon. */
 function Mark() {
   return (
     <span
@@ -46,7 +41,14 @@ function Mark() {
           stroke="var(--surface-raised)"
           strokeWidth="1.3"
         />
-        <rect x="4.4" y="6.1" width="5.2" height="2.6" rx="0.6" fill="#f0b03c" />
+        <rect
+          x="4.4"
+          y="6.1"
+          width="5.2"
+          height="2.6"
+          rx="0.6"
+          fill="#f0b03c"
+        />
       </svg>
     </span>
   );

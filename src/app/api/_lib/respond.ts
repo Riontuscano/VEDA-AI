@@ -4,12 +4,9 @@ import { AppError, toAppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
 /**
- * Turns any thrown value into a JSON error response.
- *
- * Client-caused failures (4xx) return their real message, because the user can
- * act on "page 3 is not a PNG or JPEG". Server-side failures return a generic
- * message and log the detail — an internal error message is not a useful thing
- * to put on a user's screen, and may say more than it should.
+ * 4xx returns the real message, because "page 3 is not a PNG" is actionable.
+ * 5xx returns a generic one and logs the detail: internal errors aren't useful
+ * on screen and can say more than they should.
  */
 export function errorResponse(error: unknown, route: string): NextResponse {
   const appError: AppError = toAppError(error, "unknown");

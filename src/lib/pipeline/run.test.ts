@@ -91,7 +91,10 @@ class FakeProvider implements AiProvider {
     if (this.options.failOn === "questions") {
       return { items: [], failedPages: allPagesFailed(pages) };
     }
-    return { items: this.questions, failedPages: this.options.failedPages ?? [] };
+    return {
+      items: this.questions,
+      failedPages: this.options.failedPages ?? [],
+    };
   }
 
   async extractAnswers(
@@ -247,8 +250,9 @@ describe("runPipeline", () => {
     expect(result.status).toBe("done");
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]?.recovered).toBe(true);
-    expect(result.mappings.find((m) => m.questionId === null)?.answerBlockIds)
-      .toEqual(["a-1"]);
+    expect(
+      result.mappings.find((m) => m.questionId === null)?.answerBlockIds,
+    ).toEqual(["a-1"]);
   });
 
   it("keeps the pages that succeeded when one page fails", async () => {
@@ -277,9 +281,7 @@ describe("runPipeline", () => {
   });
 
   it("fails the session when every page fails", async () => {
-    const result = await setup(
-      new FakeProvider([], [], { failOn: "answers" }),
-    );
+    const result = await setup(new FakeProvider([], [], { failOn: "answers" }));
 
     expect(result.status).toBe("failed");
     expect(result.errors[0]?.recovered).toBe(false);

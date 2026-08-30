@@ -12,15 +12,11 @@ export type AnswerSheetViewProps = {
 };
 
 /**
- * The answer sheet, with the selected answer's region highlighted.
+ * Overlays are positioned in percentages straight from the normalized boxes,
+ * so they track the image through resize and zoom with no measurement and no
+ * chance of drifting out of sync.
  *
- * Overlays are positioned in percentages straight from the normalized boxes, so
- * they track the image through any resize or zoom with no measurement, no
- * resize listener, and no chance of drifting out of sync with the rendered
- * size.
- *
- * Pages stay white in dark mode: they are photographs of paper, and inverting
- * them would misrepresent the document being reviewed.
+ * Pages stay white in dark mode: they're photographs of paper.
  */
 export function AnswerSheetView({
   pages,
@@ -36,8 +32,8 @@ export function AnswerSheetView({
       behavior: "smooth",
       block: "start",
     });
-    // `selectionKey` is in the deps so re-picking the same page for a different
-    // question still scrolls back to it.
+    // In the deps so re-picking the same page for a different question still
+    // scrolls back to it.
   }, [firstHighlightPage, selectionKey]);
 
   return (

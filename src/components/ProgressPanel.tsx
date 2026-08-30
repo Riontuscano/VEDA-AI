@@ -34,11 +34,9 @@ export type ProgressPanelProps = {
 };
 
 /**
- * Per-stage progress for a running pipeline.
- *
- * Names the stage actually in progress and says what it is doing. Reading
- * handwriting takes most of the wall time, and saying so is the difference
- * between "working" and "stuck".
+ * Names the stage in progress and what it's doing. Reading handwriting takes
+ * most of the wall time, and saying so is the difference between "working" and
+ * "stuck".
  */
 export function ProgressPanel({ status, errors }: ProgressPanelProps) {
   const currentIndex = STAGES.findIndex((stage) => stage.status === status);
@@ -61,7 +59,11 @@ export function ProgressPanel({ status, errors }: ProgressPanelProps) {
             >
               <span aria-hidden className="mt-0.5 shrink-0">
                 {done ? (
-                  <Check size={15} weight="bold" className="text-[var(--positive)]" />
+                  <Check
+                    size={15}
+                    weight="bold"
+                    className="text-[var(--positive)]"
+                  />
                 ) : active ? (
                   <CircleNotch
                     size={15}

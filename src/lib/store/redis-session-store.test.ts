@@ -30,11 +30,7 @@ class FakeRedis {
     return this.values.delete(key) ? 1 : 0;
   }
 
-  async eval(
-    _script: string,
-    keys: string[],
-    args: string[],
-  ): Promise<number> {
+  async eval(_script: string, keys: string[], args: string[]): Promise<number> {
     this.evalCalls += 1;
     const [key] = keys;
     const [expected, next] = args;

@@ -6,11 +6,8 @@ import { getFileStore, getSessionStore } from "@/lib/store";
 import { errorResponse } from "../../../../../_lib/respond";
 
 /**
- * Serves one rasterized page image to the viewer.
- *
- * The page is looked up through the session's own `PageRef` list rather than by
- * building a path from the URL, so a caller cannot reach a file that does not
- * belong to the session it named.
+ * Looks the page up through the session's own `PageRef` list rather than
+ * building a path from the URL, so a caller can't reach another session's file.
  */
 export async function GET(
   _request: Request,
@@ -48,8 +45,7 @@ export async function GET(
       headers: {
         "content-type": stored.contentType,
         "content-length": String(stored.bytes.byteLength),
-        // Page images never change within a session, and the session id is
-        // unguessable, so they are safe to cache privately for the session TTL.
+        // Immutable within a session, and the session id is unguessable.
         "cache-control": "private, max-age=3600, immutable",
       },
     });

@@ -17,10 +17,7 @@ function question(label: string, order: number): Question {
   };
 }
 
-function answer(
-  id: string,
-  overrides: Partial<AnswerBlock> = {},
-): AnswerBlock {
+function answer(id: string, overrides: Partial<AnswerBlock> = {}): AnswerBlock {
   return {
     id,
     rawLabel: null,
@@ -60,7 +57,12 @@ describe("buildReviewQueue", () => {
     const answers = [answer("a1"), answer("a9")];
     const mappings: Mapping[] = [
       mapping(),
-      { questionId: "q-2", answerBlockIds: [], matchType: "unmatched", confidence: 0 },
+      {
+        questionId: "q-2",
+        answerBlockIds: [],
+        matchType: "unmatched",
+        confidence: 0,
+      },
       {
         questionId: null,
         answerBlockIds: ["a9"],
@@ -103,9 +105,7 @@ describe("buildReviewQueue", () => {
       [question("1", 0)],
       [
         answer("a1", {
-          boxes: [
-            { page: 0, x: 0, y: 0, w: 1, h: 1, source: "page_fallback" },
-          ],
+          boxes: [{ page: 0, x: 0, y: 0, w: 1, h: 1, source: "page_fallback" }],
         }),
       ],
       [mapping()],
@@ -121,9 +121,7 @@ describe("buildReviewQueue", () => {
       [
         answer("a1", {
           confidence: 0.6,
-          boxes: [
-            { page: 0, x: 0, y: 0, w: 1, h: 1, source: "page_fallback" },
-          ],
+          boxes: [{ page: 0, x: 0, y: 0, w: 1, h: 1, source: "page_fallback" }],
         }),
       ],
       [mapping()],

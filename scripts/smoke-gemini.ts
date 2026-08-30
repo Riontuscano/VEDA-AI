@@ -51,7 +51,10 @@ async function main(): Promise<void> {
 
   const answers = [
     answer("a1", "Force equals mass times acceleration."),
-    answer("a2", "Plants convert sunlight into chemical energy using chlorophyll."),
+    answer(
+      "a2",
+      "Plants convert sunlight into chemical energy using chlorophyll.",
+    ),
     answer("a3", "The mitochondria produces ATP in the cell."),
   ];
 

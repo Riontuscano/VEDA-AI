@@ -40,13 +40,9 @@ type Row =
 /**
  * The question paper with each question's answer status.
  *
- * Two orderings. Printed order is the default, because it is how a teacher
- * reads a paper. Review order ranks by how likely the mapping is to be wrong,
- * which turns checking every question into checking the few the system is
- * least sure about.
- *
- * Rows are separated by hairlines rather than boxed as cards: at this density
- * cards add chrome without adding hierarchy.
+ * Printed order by default, because that's how a teacher reads a paper. Review
+ * order ranks by how likely the mapping is wrong. Rows use hairlines rather
+ * than cards: at this density cards add chrome without adding hierarchy.
  */
 export function QuestionList({
   questions,
@@ -91,8 +87,8 @@ export function QuestionList({
         risk: riskById.get(answer.id) ?? { score: 0, reasons: [] },
       }));
 
-    // Review order reuses the queue's ranking rather than re-sorting here, so
-    // the list and the "needs review" count can never disagree.
+    // Reuses the queue's ranking rather than re-sorting, so the list and the
+    // "needs review" count can't disagree.
     const order = [...riskById.keys()];
     const byKey = new Map([...questionRows, ...orphans].map((r) => [r.key, r]));
     const ranked = order
@@ -194,8 +190,8 @@ function RowItem({
             : "hover:bg-[var(--surface-sunken)]"
         }`}
       >
-        {/* Selection is carried by a solid rail, not only by the wash, so it
-            survives at low contrast and in dark mode. */}
+        {/* A solid rail, not just the wash, so selection survives low contrast
+            and dark mode. */}
         {isSelected && (
           <span
             aria-hidden
@@ -240,8 +236,8 @@ function RowItem({
             )}
           </span>
 
-          {/* In review order the reason is the point of the row: a rank with no
-              explanation is a number the user has to take on trust. */}
+          {/* In review order the reason is the point: a rank with no
+              explanation is a number the user has to trust. */}
           {showRisk && flagged && row.risk.reasons.length > 0 && (
             <span className="mt-1.5 block text-[11.5px] leading-relaxed text-[var(--text-tertiary)]">
               {row.risk.reasons[0]}
@@ -253,11 +249,7 @@ function RowItem({
   );
 }
 
-function QuestionChips({
-  row,
-}: {
-  row: Extract<Row, { kind: "question" }>;
-}) {
+function QuestionChips({ row }: { row: Extract<Row, { kind: "question" }> }) {
   const { mapping, linked } = row;
   const answered = (mapping?.answerBlockIds.length ?? 0) > 0;
   const approximate = linked.some((answer) =>

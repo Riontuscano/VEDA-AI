@@ -10,20 +10,12 @@ const PATHNAME_PATTERN =
   /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9._-]{1,128}$/;
 
 /**
- * Page-image store backed by Vercel Blob.
+ * Page images in Vercel Blob. Rasters are hundreds of KB each, the wrong shape
+ * for Redis, which holds only the session JSON pointing at them.
  *
- * Page rasters are hundreds of kilobytes each, which is the wrong shape for
- * Redis. Blob is object storage, so it is where these belong; Redis holds only
- * the small session JSON that points at them.
- *
- * Defaults to private access. These are photographs of someone's exam script,
- * and a public store would make every page readable by anyone holding the URL,
- * which is not a property worth having for the sake of a slightly simpler read
- * path. Reads therefore go through the authenticated `get()` rather than a
- * plain fetch.
- *
- * The storage key is the blob pathname, not a URL: private blobs are not
- * addressable by URL, and a pathname is also stable and easy to validate.
+ * Private by default: these are photos of someone's exam script. Reads go
+ * through the authenticated get(), and keys are blob pathnames rather than
+ * URLs, since private blobs aren't URL-addressable.
  */
 export class BlobFileStore implements FileStore {
   constructor(
@@ -42,8 +34,8 @@ export class BlobFileStore implements FileStore {
     await put(pathname, Buffer.from(file.bytes), {
       access: this.access,
       contentType: file.contentType,
-      // Page content is immutable within a session, and a random suffix would
-      // make the key unpredictable for the read that follows.
+      // Content is immutable within a session, and a random suffix would make
+      // the key unpredictable for the read that follows.
       addRandomSuffix: false,
       allowOverwrite: true,
     });
@@ -69,11 +61,8 @@ export class BlobFileStore implements FileStore {
   }
 
   /**
-   * Blobs expire with the session rather than being deleted eagerly.
-   *
-   * Deleting would need a list call per session, and sessions are short-lived
-   * and small. A store lifecycle rule is the right mechanism for this, not
-   * application code on a request path.
+   * Blobs expire with the session. Eager deletion would need a list call per
+   * session; a store lifecycle rule is the right mechanism, not request code.
    */
   async deleteSession(sessionId: string): Promise<void> {
     assertSessionId(sessionId);

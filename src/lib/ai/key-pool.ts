@@ -1,16 +1,11 @@
 import type { Logger } from "@/lib/logger";
 
 /**
- * Round-robin pool of API keys with per-key cooldown.
+ * Round-robin key pool with per-key cooldown, so one exhausted key doesn't
+ * stop the run.
  *
- * Free-tier Gemini keys have low per-minute and per-day quotas. Spreading calls
- * across several keys raises the effective ceiling, and more importantly makes
- * a quota failure recoverable: an exhausted key is sidelined and the next call
- * goes out on a different one immediately.
- *
- * Only quota and auth failures should sideline a key. A 503 means the model
- * itself is busy, which every key shares, so rotating on it would burn the pool
- * for nothing.
+ * Only quota and auth failures sideline a key. A 503 means the model is busy,
+ * which every key shares, so rotating on it would burn the pool for nothing.
  */
 export interface KeyPool {
   /** Next usable key. Falls back to the least-recently-cooled when all are cooling. */
@@ -20,7 +15,7 @@ export interface KeyPool {
   readonly size: number;
 }
 
-/** How long an exhausted key sits out. Per-minute quotas recover inside this. */
+/** Long enough for a per-minute quota to recover. */
 const DEFAULT_COOLDOWN_MS = 65_000;
 
 export class RoundRobinKeyPool implements KeyPool {
@@ -55,8 +50,8 @@ export class RoundRobinKeyPool implements KeyPool {
       }
     }
 
-    // Everything is cooling. Use whichever recovers soonest rather than
-    // failing outright: the quota window may already have rolled over.
+    // All cooling. Try the one that recovers soonest rather than failing:
+    // the quota window may already have rolled over.
     let soonestKey = this.keys[0] as string;
     let soonest = Number.POSITIVE_INFINITY;
     for (const key of this.keys) {
@@ -91,12 +86,7 @@ export class RoundRobinKeyPool implements KeyPool {
   }
 }
 
-/**
- * Short, non-reversible reference to a key, safe to put in logs.
- *
- * Logs get shipped, pasted into issues and shared in demos, so key material
- * must never appear in them.
- */
+/** Safe to log. Key material must never reach a log line. */
 export function describeKey(key: string): string {
   return `…${key.slice(-4)}`;
 }

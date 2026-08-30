@@ -9,20 +9,6 @@ export type PageImage = {
   mimeType: string;
 };
 
-/**
- * An answer block as seen on a single page, before multi-page merging.
- *
- * The provider returns these rather than finished `AnswerBlock`s so the merge
- * heuristic stays a pure function in the pipeline, unit-testable without a
- * model call.
- */
-export type PageAnswerBlock = AnswerBlock & {
-  /** Page this block was found on. */
-  page: number;
-  /** Model's judgement that this block continues an answer from the page before. */
-  continuesPreviousPage: boolean;
-};
-
 export type InferredMatch = {
   answerBlockId: string;
   /** Null when no question on the paper plausibly matches. */
@@ -37,12 +23,8 @@ export type PageFailure = {
 };
 
 /**
- * Extraction outcome that survives partial failure.
- *
- * Pages are independent model calls, and a single overloaded-server 503 must
- * not discard the pages that succeeded. Callers get what was extracted plus an
- * explicit list of what was lost, so the failure is reported rather than
- * hidden.
+ * Pages are independent calls, so one 503 must not discard the pages that
+ * succeeded. Callers get what was extracted plus what was lost.
  */
 export type ExtractionResult<T> = {
   items: T[];
@@ -50,12 +32,18 @@ export type ExtractionResult<T> = {
 };
 
 /**
- * The AI seam.
- *
- * The pipeline depends only on this interface, so the provider is a config
- * choice rather than a hard-wired dependency. `GeminiProvider` is the shipped
- * implementation; a fake implementing the same interface backs the pipeline
- * tests without spending quota.
+ * An answer block as seen on one page, before multi-page merging. Keeps the
+ * merge heuristic a pure function in the pipeline rather than in the adapter.
+ */
+export type PageAnswerBlock = AnswerBlock & {
+  page: number;
+  /** Model's judgement that this continues an answer from the page before. */
+  continuesPreviousPage: boolean;
+};
+
+/**
+ * The AI seam. The pipeline depends only on this, so the provider is a config
+ * choice, and a fake implementing it backs the tests without spending quota.
  */
 export interface AiProvider {
   extractQuestions(
@@ -66,10 +54,7 @@ export interface AiProvider {
     pages: PageImage[],
     log: Logger,
   ): Promise<ExtractionResult<PageAnswerBlock>>;
-  /**
-   * Content-based fallback for answers whose written label is missing or does
-   * not parse. Only called for blocks that label matching could not resolve.
-   */
+  /** Only called for answers whose written label was missing or unparseable. */
   inferMatches(
     questions: Question[],
     answers: AnswerBlock[],

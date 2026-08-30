@@ -14,22 +14,15 @@ import type {
 import { AnswerSheetView } from "./AnswerSheetView";
 import { AppHeader } from "./AppHeader";
 import { ProgressPanel } from "./ProgressPanel";
-import {
-  QuestionList,
-  type Selection,
-  type SortMode,
-} from "./QuestionList";
-import {
-  buildReviewQueue,
-  countNeedingReview,
-} from "@/lib/pipeline/review";
+import { QuestionList, type Selection, type SortMode } from "./QuestionList";
+import { buildReviewQueue, countNeedingReview } from "@/lib/pipeline/review";
 
 const POLL_INTERVAL_MS = 1000;
 
 /**
- * Owns one session: polls it while the pipeline runs, then shows the viewer.
+ * Owns one session: polls while the pipeline runs, then shows the viewer.
  *
- * Polling rather than SSE. The status payload is tiny, and polling needs no
+ * Polling over SSE because the status payload is tiny, and polling needs no
  * reconnect handling and survives proxies that buffer streamed responses.
  */
 export function SessionView({ sessionId }: { sessionId: string }) {
@@ -274,7 +267,7 @@ function SortTab({
   );
 }
 
-/** Boxes to highlight for the current selection, or none when nothing is selected. */
+/** Boxes for the current selection, or none. */
 function resolveHighlights(
   result: SessionResultPayload | null,
   selection: Selection,

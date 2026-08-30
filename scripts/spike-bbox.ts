@@ -1,17 +1,12 @@
 /**
- * Bounding-box spike.
- *
- * The single highest-risk assumption in this project is that the vision model
- * returns usable coordinates for handwritten answer regions. This script tests
- * that against real pages before any UI depends on it.
+ * Draws the model's boxes over real pages so box quality can be judged by
+ * looking rather than assumed.
  *
  *   npm run spike:bbox -- fixtures/answer-1.png fixtures/answer-2.png
  *   npm run spike:bbox -- --questions fixtures/paper-1.png
  *
- * Writes `spike-output/index.html`: each page image with the returned boxes
- * drawn over it. Open it and look. If the boxes track the writing, the
- * highlighting feature is viable as designed; if they do not, highlighting
- * degrades to page level and that goes in the README as a known limitation.
+ * Writes spike-output/index.html plus annotated PNGs. Blue is a model box, red
+ * is a fallback to the whole page.
  */
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -98,13 +93,7 @@ async function main(): Promise<void> {
   );
 }
 
-/**
- * Draws the boxes onto copies of the page images.
- *
- * The HTML view needs a browser; these PNGs can be checked from anywhere,
- * which matters because this is the one result in the project that can only be
- * judged by looking at it.
- */
+/** PNGs as well as HTML, so the result can be checked without a browser. */
 async function annotatePages(
   files: string[],
   overlays: Overlay[],

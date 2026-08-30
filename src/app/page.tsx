@@ -71,7 +71,6 @@ const CAPABILITIES = [
   },
   {
     title: "Answers across two pages",
-    detail:
-      "Joined back together, and the highlight spans both pages at once.",
+    detail: "Joined back together, and the highlight spans both pages at once.",
   },
 ] as const;

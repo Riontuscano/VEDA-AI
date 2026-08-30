@@ -1,14 +1,11 @@
 /**
- * Accuracy evaluation against hand-written ground truth.
+ * Scores the real pipeline against hand-written ground truth, so prompt changes
+ * can be judged by numbers rather than impressions. Exits non-zero below the
+ * threshold, so it works as a gate.
  *
  *   npm run eval                 # all cases, cached where possible
  *   npm run eval -- --no-cache   # force live model calls
  *   npm run eval -- synthetic    # one case by name
- *
- * Runs the real pipeline end to end and scores the result, so prompt changes
- * can be judged by numbers rather than by re-reading one document and forming
- * an impression. Exits non-zero if any metric regresses below its threshold,
- * which makes it usable as a gate.
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -33,7 +30,7 @@ const THRESHOLD = 0.9;
 const FIXTURES = path.resolve("fixtures");
 const TRUTH_DIR = path.join(FIXTURES, "ground-truth");
 
-/** Keeps fixture pages in memory; nothing here needs to touch disk. */
+/** Fixture pages in memory; nothing here needs disk. */
 class MemoryFileStore implements FileStore {
   private readonly files = new Map<string, StoredFile>();
 
@@ -63,7 +60,7 @@ async function loadPages(
       bytes,
       contentType,
     });
-    // Dimensions are irrelevant to scoring; boxes are already normalized.
+    // Irrelevant to scoring; boxes are already normalized.
     refs.push({ index, width: 1000, height: 1414, storageKey });
   }
   return refs;
@@ -123,7 +120,9 @@ async function main(): Promise<void> {
 
   const names = (await readdir(TRUTH_DIR))
     .filter((file) => file.endsWith(".json"))
-    .filter((file) => only.length === 0 || only.includes(path.parse(file).name));
+    .filter(
+      (file) => only.length === 0 || only.includes(path.parse(file).name),
+    );
 
   if (names.length === 0) {
     console.error(`No ground-truth files matched in ${TRUTH_DIR}`);

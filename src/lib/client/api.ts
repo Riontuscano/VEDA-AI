@@ -1,12 +1,9 @@
 "use client";
 
-import type {
-  SessionResultPayload,
-  SessionStatusPayload,
-} from "@/lib/types";
+import type { SessionResultPayload, SessionStatusPayload } from "@/lib/types";
 import { rasterizeFiles, type RasterizedPage } from "./rasterize";
 
-/** Thin typed client for the session API. */
+/** Typed client for the session API. */
 
 export class ApiError extends Error {
   constructor(

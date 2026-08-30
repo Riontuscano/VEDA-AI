@@ -80,7 +80,11 @@ describe("matchByLabel", () => {
 
 describe("matchByPosition", () => {
   it("fills a single-question gap between two anchored answers", () => {
-    const answers = [answer("a1", "Q1"), answer("a2", null), answer("a3", "Q3")];
+    const answers = [
+      answer("a1", "Q1"),
+      answer("a2", null),
+      answer("a3", "Q3"),
+    ];
     const labelled = new Map([
       ["a1", "q-1"],
       ["a3", "q-3"],
@@ -90,7 +94,11 @@ describe("matchByPosition", () => {
   });
 
   it("does not fire when the gap spans more than one question", () => {
-    const answers = [answer("a1", "Q1"), answer("a2", null), answer("a3", "Q4")];
+    const answers = [
+      answer("a1", "Q1"),
+      answer("a2", null),
+      answer("a3", "Q4"),
+    ];
     const labelled = new Map([
       ["a1", "q-1"],
       ["a3", "q-4"],
@@ -100,7 +108,11 @@ describe("matchByPosition", () => {
   });
 
   it("does not fire without an anchor on both sides", () => {
-    const answers = [answer("a1", null), answer("a2", null), answer("a3", "Q3")];
+    const answers = [
+      answer("a1", null),
+      answer("a2", null),
+      answer("a3", "Q3"),
+    ];
     const labelled = new Map([["a3", "q-3"]]);
 
     expect(matchByPosition(questions, answers, labelled).size).toBe(0);
@@ -125,7 +137,11 @@ describe("matchByPosition", () => {
 
 describe("answersNeedingInference", () => {
   it("returns only answers no cheap pass resolved", () => {
-    const answers = [answer("a1", "Q1"), answer("a2", null), answer("a3", null)];
+    const answers = [
+      answer("a1", "Q1"),
+      answer("a2", null),
+      answer("a3", null),
+    ];
     const remaining = answersNeedingInference(
       answers,
       new Map([["a1", "q-1"]]),
@@ -212,12 +228,12 @@ describe("buildMappings", () => {
       inferred: [{ answerBlockId: "a1", questionId: "q-4", confidence: 0.9 }],
     });
 
-    expect(mappings.find((m) => m.questionId === "q-1")?.answerBlockIds).toEqual(
-      ["a1"],
-    );
-    expect(mappings.find((m) => m.questionId === "q-4")?.answerBlockIds).toEqual(
-      [],
-    );
+    expect(
+      mappings.find((m) => m.questionId === "q-1")?.answerBlockIds,
+    ).toEqual(["a1"]);
+    expect(
+      mappings.find((m) => m.questionId === "q-4")?.answerBlockIds,
+    ).toEqual([]);
   });
 
   it("links several answer blocks to one question in document order", () => {
@@ -232,9 +248,9 @@ describe("buildMappings", () => {
       inferred: [],
     });
 
-    expect(mappings.find((m) => m.questionId === "q-1")?.answerBlockIds).toEqual(
-      ["a1", "a2"],
-    );
+    expect(
+      mappings.find((m) => m.questionId === "q-1")?.answerBlockIds,
+    ).toEqual(["a1", "a2"]);
   });
 
   it("ignores inferred matches naming a question that does not exist", () => {
@@ -248,8 +264,8 @@ describe("buildMappings", () => {
       ],
     });
 
-    expect(mappings.find((m) => m.questionId === null)?.answerBlockIds).toEqual([
-      "a1",
-    ]);
+    expect(mappings.find((m) => m.questionId === null)?.answerBlockIds).toEqual(
+      ["a1"],
+    );
   });
 });
