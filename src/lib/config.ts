@@ -65,6 +65,12 @@ const ConfigSchema = z.object({
   redisUrl: z.string().url().optional(),
   redisToken: z.string().min(1).optional(),
   blobToken: z.string().min(1).optional(),
+  /**
+   * Private by default: page images are photographs of someone's exam script,
+   * and a public store makes every page readable by anyone with the URL.
+   * Override only if the connected store is configured for public access.
+   */
+  blobAccess: z.enum(["private", "public"]).default("private"),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -90,6 +96,7 @@ export function getConfig(): Config {
     fileStoreDir: process.env.FILE_STORE_DIR,
     ...resolveRedisCredentials(process.env),
     blobToken: process.env.BLOB_READ_WRITE_TOKEN || undefined,
+    blobAccess: process.env.BLOB_ACCESS,
   });
 
   if (!parsed.success) {

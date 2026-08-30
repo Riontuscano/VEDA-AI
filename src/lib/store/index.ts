@@ -53,7 +53,7 @@ function build(): Stores {
       : new MemorySessionStore(config.sessionTtlMs);
 
   const files: FileStore = config.blobToken
-    ? new BlobFileStore()
+    ? new BlobFileStore(config.blobAccess)
     : new DiskFileStore(config.fileStoreDir);
 
   logger.info("Storage configured", {

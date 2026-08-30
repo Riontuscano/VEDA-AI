@@ -1,24 +1,35 @@
 import { createHash } from "node:crypto";
 
-import { head, put } from "@vercel/blob";
+import { get, put, type BlobAccessType } from "@vercel/blob";
 
 import { ValidationError } from "@/lib/errors";
 import type { FileStore, StoredFile } from "./types";
 
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const PATHNAME_PATTERN =
+  /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9._-]{1,128}$/;
 
 /**
  * Page-image store backed by Vercel Blob.
  *
  * Page rasters are hundreds of kilobytes each, which is the wrong shape for
- * Redis. Blob is object storage, so it is what these belong in; Redis keeps
- * only the small session JSON that points at them.
+ * Redis. Blob is object storage, so it is where these belong; Redis holds only
+ * the small session JSON that points at them.
  *
- * Uploaded names are never used as paths. Keys are generated from the session
- * id and a caller-supplied slug, both of which are validated.
+ * Defaults to private access. These are photographs of someone's exam script,
+ * and a public store would make every page readable by anyone holding the URL,
+ * which is not a property worth having for the sake of a slightly simpler read
+ * path. Reads therefore go through the authenticated `get()` rather than a
+ * plain fetch.
+ *
+ * The storage key is the blob pathname, not a URL: private blobs are not
+ * addressable by URL, and a pathname is also stable and easy to validate.
  */
 export class BlobFileStore implements FileStore {
-  constructor(private readonly prefix = "sessions") {}
+  constructor(
+    private readonly access: BlobAccessType = "private",
+    private readonly prefix = "sessions",
+  ) {}
 
   async save(
     sessionId: string,
@@ -26,75 +37,46 @@ export class BlobFileStore implements FileStore {
     file: StoredFile,
   ): Promise<string> {
     assertSessionId(sessionId);
-    const safeName = sanitizeName(name);
-    const pathname = `${this.prefix}/${sessionId}/${safeName}`;
+    const pathname = `${this.prefix}/${sessionId}/${sanitizeName(name)}`;
 
-    const blob = await put(pathname, Buffer.from(file.bytes), {
-      access: "public",
+    await put(pathname, Buffer.from(file.bytes), {
+      access: this.access,
       contentType: file.contentType,
-      // Page content is immutable for a session, and a suffix would make the
-      // returned key unpredictable for later reads.
+      // Page content is immutable within a session, and a random suffix would
+      // make the key unpredictable for the read that follows.
       addRandomSuffix: false,
       allowOverwrite: true,
     });
 
-    return blob.url;
+    return pathname;
   }
 
-  /**
-   * Blob URLs are unguessable but public, so the storage key is the URL itself.
-   * Reads go through the app's own route, which checks the URL belongs to the
-   * session being requested before fetching.
-   */
   async read(storageKey: string): Promise<StoredFile | null> {
-    if (!isBlobUrl(storageKey)) {
+    if (!PATHNAME_PATTERN.test(storageKey)) {
       throw new ValidationError("Malformed storage key", {
         code: "malformed_storage_key",
       });
     }
 
-    const response = await fetch(storageKey);
-    if (!response.ok) return null;
+    const result = await get(storageKey, { access: this.access });
+    if (!result || result.stream === null) return null;
 
     return {
-      bytes: new Uint8Array(await response.arrayBuffer()),
+      bytes: new Uint8Array(await new Response(result.stream).arrayBuffer()),
       contentType:
-        response.headers.get("content-type") ?? "application/octet-stream",
+        result.headers?.get("content-type") ?? "application/octet-stream",
     };
   }
 
   /**
    * Blobs expire with the session rather than being deleted eagerly.
    *
-   * Deleting would need a list call per session and the store has no index of
-   * what it wrote. Sessions are short-lived and the blobs are small, so a
-   * lifecycle rule on the bucket is the right mechanism, not application code.
+   * Deleting would need a list call per session, and sessions are short-lived
+   * and small. A store lifecycle rule is the right mechanism for this, not
+   * application code on a request path.
    */
   async deleteSession(sessionId: string): Promise<void> {
     assertSessionId(sessionId);
-  }
-
-  /** Cheap existence probe, used by the health check. */
-  async exists(storageKey: string): Promise<boolean> {
-    try {
-      await head(storageKey);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-}
-
-function isBlobUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      (url.hostname.endsWith(".vercel-storage.com") ||
-        url.hostname.endsWith(".public.blob.vercel-storage.com"))
-    );
-  } catch {
-    return false;
   }
 }
 
@@ -106,6 +88,7 @@ function assertSessionId(sessionId: string): void {
   }
 }
 
+/** Reduces a caller-supplied name to a safe path segment. */
 function sanitizeName(name: string): string {
   const suffix = createHash("sha256").update(name).digest("hex").slice(0, 8);
   const base = name
