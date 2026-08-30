@@ -12,8 +12,15 @@ const intFromEnv = (fallback: number) =>
   z.coerce.number().int().positive().default(fallback);
 
 const ConfigSchema = z.object({
-  geminiApiKey: z.string().min(1, "GEMINI_API_KEY is required"),
+  /**
+   * One or more API keys. Several keys are pooled and rotated, which raises the
+   * effective free-tier quota and makes a per-key exhaustion recoverable rather
+   * than fatal.
+   */
+  geminiApiKeys: z.array(z.string().min(1)).min(1, "At least one Gemini API key is required"),
   geminiModel: z.string().min(1).default("gemini-2.5-flash"),
+  /** How long an exhausted key sits out before being retried. */
+  geminiKeyCooldownMs: intFromEnv(65_000),
 
   /** Rejected above this many pages per uploaded document. */
   maxPagesPerDocument: intFromEnv(20),
@@ -56,8 +63,9 @@ export function getConfig(): Config {
   if (cached) return cached;
 
   const parsed = ConfigSchema.safeParse({
-    geminiApiKey: process.env.GEMINI_API_KEY,
+    geminiApiKeys: collectApiKeys(process.env),
     geminiModel: process.env.GEMINI_MODEL,
+    geminiKeyCooldownMs: process.env.GEMINI_KEY_COOLDOWN_MS,
     maxPagesPerDocument: process.env.MAX_PAGES_PER_DOCUMENT,
     maxPageBytes: process.env.MAX_PAGE_BYTES,
     maxPagePixels: process.env.MAX_PAGE_PIXELS,
@@ -79,6 +87,44 @@ export function getConfig(): Config {
 
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * Gathers API keys from the three shapes people actually use, in order:
+ *
+ *   GEMINI_API_KEY          a single key
+ *   GEMINI_API_KEYS         comma-separated list
+ *   GEMINI_API_KEY_1..N     one per line, which is how they arrive from the
+ *                           AI Studio console
+ *
+ * Duplicates are removed so a key listed twice does not get double the share of
+ * traffic and hit its quota twice as fast.
+ */
+export function collectApiKeys(
+  env: Record<string, string | undefined>,
+): string[] {
+  const found: string[] = [];
+
+  const single = env.GEMINI_API_KEY?.trim();
+  if (single) found.push(single);
+
+  for (const part of (env.GEMINI_API_KEYS ?? "").split(",")) {
+    const key = part.trim();
+    if (key) found.push(key);
+  }
+
+  // Numbered keys are sorted numerically so KEY_10 does not sort before KEY_2.
+  const numbered = Object.keys(env)
+    .map((name) => /^GEMINI_API_KEY_(\d+)$/.exec(name))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .sort((a, b) => Number(a[1]) - Number(b[1]));
+
+  for (const match of numbered) {
+    const key = env[match[0]]?.trim();
+    if (key) found.push(key);
+  }
+
+  return [...new Set(found)];
 }
 
 /** Test seam: forces the next `getConfig()` to re-read `process.env`. */

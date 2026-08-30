@@ -1,8 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
 import { getConfig } from "@/lib/config";
+import { logger } from "@/lib/logger";
 import { DiskResponseCache, NullResponseCache } from "./cache";
 import { GeminiProvider } from "./gemini";
+import { RoundRobinKeyPool } from "./key-pool";
 import { createLimiter } from "./limiter";
 import type { AiProvider } from "./provider";
 
@@ -26,8 +28,17 @@ type GlobalWithProvider = typeof globalThis & { [GLOBAL_KEY]?: AiProvider };
 function build(): AiProvider {
   const config = getConfig();
 
+  logger.info("AI provider configured", {
+    model: config.geminiModel,
+    keyPoolSize: config.geminiApiKeys.length,
+  });
+
   return new GeminiProvider({
-    client: new GoogleGenAI({ apiKey: config.geminiApiKey }),
+    createClient: (apiKey) => new GoogleGenAI({ apiKey }),
+    keys: new RoundRobinKeyPool(
+      config.geminiApiKeys,
+      config.geminiKeyCooldownMs,
+    ),
     model: config.geminiModel,
     cache: config.cacheEnabled
       ? new DiskResponseCache(config.cacheDir)

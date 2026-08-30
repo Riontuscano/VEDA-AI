@@ -26,6 +26,11 @@ export type AppErrorOptions = {
    * come back later" and deserve a much longer backoff than a generic failure.
    */
   upstreamStatus?: number;
+  /**
+   * The API key the failed call went out on, so a quota failure can sideline
+   * that specific key. Never logged or serialized.
+   */
+  apiKey?: string;
   cause?: unknown;
 };
 
@@ -35,6 +40,7 @@ export class AppError extends Error {
   readonly httpStatus: number;
   readonly retryable: boolean;
   readonly upstreamStatus: number | undefined;
+  readonly apiKey: string | undefined;
 
   constructor(message: string, options: AppErrorOptions = {}) {
     super(message, { cause: options.cause });
@@ -44,11 +50,23 @@ export class AppError extends Error {
     this.httpStatus = options.httpStatus ?? 500;
     this.retryable = options.retryable ?? false;
     this.upstreamStatus = options.upstreamStatus;
+    this.apiKey = options.apiKey;
   }
 
-  /** True when the upstream said it was overloaded rather than broken. */
+  /**
+   * Quota exhausted or credentials rejected: specific to the key used, so
+   * another key may well succeed right now.
+   */
+  get isKeyExhausted(): boolean {
+    return this.upstreamStatus === 429 || this.upstreamStatus === 403;
+  }
+
+  /**
+   * The model itself is busy. Every key shares that, so rotating would burn
+   * the pool without helping. Wait instead.
+   */
   get isUpstreamOverloaded(): boolean {
-    return this.upstreamStatus === 429 || this.upstreamStatus === 503;
+    return this.upstreamStatus === 503 || this.upstreamStatus === 500;
   }
 }
 

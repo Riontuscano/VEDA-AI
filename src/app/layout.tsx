@@ -1,21 +1,31 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/*
+ * IBM Plex Sans carries real character at label sizes without reading as a
+ * template, and its mono sibling pairing is designed for exactly this kind of
+ * data-dense tool. JetBrains Mono handles every question label, count and
+ * confidence figure, so numbers align in columns.
+ */
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "VEDA AI — Answer Sheet Mapper",
+  title: "Answer Sheet Mapper",
   description:
-    "Upload a question paper and a handwritten answer sheet; see each answer mapped and highlighted.",
+    "Extract questions from a paper, read a handwritten answer sheet, and map every answer to the question it answers.",
 };
 
 // Props are typed inline rather than via Next's generated `LayoutProps`, which
@@ -28,9 +38,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${plexSans.variable} ${jetbrainsMono.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

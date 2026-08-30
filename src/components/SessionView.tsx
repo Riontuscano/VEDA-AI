@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, Warning } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -11,6 +12,7 @@ import type {
 } from "@/lib/types";
 
 import { AnswerSheetView } from "./AnswerSheetView";
+import { AppHeader } from "./AppHeader";
 import { ProgressPanel } from "./ProgressPanel";
 import { QuestionList, type Selection } from "./QuestionList";
 
@@ -19,7 +21,7 @@ const POLL_INTERVAL_MS = 1000;
 /**
  * Owns one session: polls it while the pipeline runs, then shows the viewer.
  *
- * Polling rather than SSE — the status payload is tiny, and polling needs no
+ * Polling rather than SSE. The status payload is tiny, and polling needs no
  * reconnect handling and survives proxies that buffer streamed responses.
  */
 export function SessionView({ sessionId }: { sessionId: string }) {
@@ -78,42 +80,58 @@ export function SessionView({ sessionId }: { sessionId: string }) {
       : `a:${selection.answerId}`;
   }, [selection]);
 
-  const handleSelect = useCallback(
-    (next: Selection) => setSelection(next),
-    [],
-  );
+  const handleSelect = useCallback((next: Selection) => setSelection(next), []);
 
   if (error) {
     return (
-      <Centered>
-        <p role="alert" className="text-sm text-red-800">
-          {error}
-        </p>
-        <Link href="/" className="mt-3 inline-block text-sm text-blue-600">
-          Start over
-        </Link>
-      </Centered>
+      <>
+        <AppHeader />
+        <div className="grid flex-1 place-items-center p-6">
+          <div className="max-w-sm text-center">
+            <p role="alert" className="text-[13px] text-[var(--danger)]">
+              {error}
+            </p>
+            <Link
+              href="/"
+              className="mt-4 inline-flex items-center gap-1.5 text-[13px] text-[var(--accent)]"
+            >
+              <ArrowLeft size={13} weight="bold" />
+              Start over
+            </Link>
+          </div>
+        </div>
+      </>
     );
   }
 
   if (!result) {
     return (
-      <Centered>
-        <ProgressPanel
-          status={status?.status ?? "uploading"}
-          errors={status?.errors ?? []}
-        />
-        {status?.status === "failed" && (
-          <Link href="/" className="mt-4 inline-block text-sm text-blue-600">
-            Start over
-          </Link>
-        )}
-      </Centered>
+      <>
+        <AppHeader />
+        <div className="grid flex-1 place-items-center p-6">
+          <div className="flex flex-col items-center">
+            <ProgressPanel
+              status={status?.status ?? "uploading"}
+              errors={status?.errors ?? []}
+            />
+            {status?.status === "failed" && (
+              <Link
+                href="/"
+                className="mt-6 inline-flex items-center gap-1.5 self-start text-[13px] text-[var(--accent)]"
+              >
+                <ArrowLeft size={13} weight="bold" />
+                Start over
+              </Link>
+            )}
+          </div>
+        </div>
+      </>
     );
   }
 
   const answered = result.mappings.filter(
-    (mapping) => mapping.questionId !== null && mapping.answerBlockIds.length > 0,
+    (mapping) =>
+      mapping.questionId !== null && mapping.answerBlockIds.length > 0,
   ).length;
   const orphans = result.mappings.filter(
     (mapping) => mapping.questionId === null,
@@ -121,30 +139,41 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   const recovered = result.errors.filter((entry) => entry.recovered);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-slate-200 bg-white px-4 py-3">
-        <h1 className="text-sm font-semibold text-slate-900">
-          {result.questions.length} questions · {answered} answered
-          {orphans > 0 && ` · ${orphans} unmatched`}
-        </h1>
-        <p className="text-xs text-slate-500">
-          Select a question to highlight its answer.
-        </p>
-        <Link href="/" className="ml-auto text-xs text-blue-600">
+    <>
+      <AppHeader>
+        <dl className="flex items-center gap-4 font-mono text-[11px] text-[var(--text-tertiary)]">
+          <Stat label="questions" value={result.questions.length} />
+          <Stat label="answered" value={answered} />
+          {orphans > 0 && <Stat label="unmatched" value={orphans} />}
+        </dl>
+        <Link
+          href="/"
+          className="text-[12.5px] text-[var(--accent)] hover:underline"
+        >
           New upload
         </Link>
-      </header>
+      </AppHeader>
 
       {recovered.length > 0 && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
-          {recovered.map((entry, index) => (
-            <p key={index}>{entry.message}</p>
-          ))}
+        <div
+          role="status"
+          className="flex items-start gap-2 border-b border-[var(--highlight)]/25 bg-[var(--highlight-wash)] px-4 py-2"
+        >
+          <Warning
+            size={14}
+            weight="fill"
+            className="mt-px shrink-0 text-[var(--highlight)]"
+          />
+          <div className="min-w-0 text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+            {recovered.map((entry, index) => (
+              <p key={index}>{entry.message}</p>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-full max-w-md shrink-0 border-r border-slate-200 bg-white">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] lg:h-auto lg:w-[26rem] lg:border-b-0 lg:border-r">
           <QuestionList
             questions={result.questions}
             answers={result.answers}
@@ -154,7 +183,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
           />
         </aside>
 
-        <main className="min-w-0 flex-1">
+        <main className="min-h-[60vh] min-w-0 flex-1 lg:min-h-0">
           <AnswerSheetView
             pages={result.answerPages}
             highlights={highlights}
@@ -162,6 +191,15 @@ export function SessionView({ sessionId }: { sessionId: string }) {
           />
         </main>
       </div>
+    </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <dt className="uppercase tracking-[0.04em]">{label}</dt>
+      <dd className="font-medium text-[var(--text-primary)]">{value}</dd>
     </div>
   );
 }
@@ -188,13 +226,5 @@ function resolveHighlights(
 
   return mapping.answerBlockIds.flatMap(
     (id) => answersById.get(id)?.boxes ?? [],
-  );
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid flex-1 place-items-center p-6 text-center">
-      <div>{children}</div>
-    </div>
   );
 }

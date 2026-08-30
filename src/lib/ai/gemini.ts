@@ -8,6 +8,7 @@ import type { Question } from "@/lib/types";
 
 import { computeCacheKey, type ResponseCache } from "./cache";
 import { fromGeminiBox, pageFallbackBox, readingOrderCompare } from "./geometry";
+import type { KeyPool } from "./key-pool";
 import type { Limiter } from "./limiter";
 import {
   ANSWER_EXTRACTION_PROMPT,
@@ -36,7 +37,9 @@ const QUESTION_TEXT_BUDGET = 400;
 const ANSWER_TEXT_BUDGET = 800;
 
 export type GeminiProviderDeps = {
-  client: GoogleGenAI;
+  /** Builds (or returns a cached) client for one API key. */
+  createClient: (apiKey: string) => GoogleGenAI;
+  keys: KeyPool;
   model: string;
   cache: ResponseCache;
   limiter: Limiter;
@@ -45,7 +48,19 @@ export type GeminiProviderDeps = {
 };
 
 export class GeminiProvider implements AiProvider {
+  /** One client per key, built on first use and reused thereafter. */
+  private readonly clients = new Map<string, GoogleGenAI>();
+
   constructor(private readonly deps: GeminiProviderDeps) {}
+
+  private clientFor(apiKey: string): GoogleGenAI {
+    let client = this.clients.get(apiKey);
+    if (!client) {
+      client = this.deps.createClient(apiKey);
+      this.clients.set(apiKey, client);
+    }
+    return client;
+  }
 
   async extractQuestions(
     pages: PageImage[],
@@ -252,8 +267,19 @@ export class GeminiProvider implements AiProvider {
     }
 
     let corrective = "";
+    let attempt = 0;
+    /**
+     * Rotations get their own budget, separate from `attempt`.
+     *
+     * Moving to a different key after a quota rejection is not a retry of the
+     * same failing call: nothing has been waited on and nothing has been
+     * re-sent to a server that just refused. Charging rotations against the
+     * retry budget means a pool of ten keys gives up after trying two.
+     */
+    let rotations = 0;
+    const maxRotations = this.deps.keys.size;
 
-    for (let attempt = 0; ; attempt += 1) {
+    for (;;) {
       const startedAt = Date.now();
       try {
         const text = await this.deps.limiter(() =>
@@ -275,11 +301,44 @@ export class GeminiProvider implements AiProvider {
         });
         return parsed.value;
       } catch (error) {
+        // Rotation is considered before the retry budget, because a spent
+        // retry budget says nothing about whether a different key would work.
+        //
+        // A quota or credential failure belongs to one key, not to the model.
+        // Sideline that key and go straight to the next one: waiting would not
+        // help, and the whole point of a key pool is that the next call can go
+        // out immediately.
+        if (
+          error instanceof ModelError &&
+          error.isKeyExhausted &&
+          error.apiKey
+        ) {
+          this.deps.keys.penalize(
+            error.apiKey,
+            `status ${error.upstreamStatus}`,
+            log,
+          );
+          if (this.deps.keys.size > 1 && rotations < maxRotations) {
+            rotations += 1;
+            log.info("Rotating to another API key", {
+              operation,
+              rotations,
+              maxRotations,
+            });
+            continue;
+          }
+        }
+
         const isRetryable =
           error instanceof ModelError || error instanceof SchemaError;
 
         if (!isRetryable || attempt >= this.deps.maxRetries) {
-          log.error("Model call failed", { operation, attempt, err: error });
+          log.error("Model call failed", {
+            operation,
+            attempt,
+            rotations,
+            err: error,
+          });
           throw error;
         }
 
@@ -287,6 +346,7 @@ export class GeminiProvider implements AiProvider {
           corrective = correctiveSuffix(error.message);
         }
 
+        attempt += 1;
         const overloaded =
           error instanceof ModelError && error.isUpstreamOverloaded;
         const delayMs = backoffMs(attempt, overloaded);
@@ -307,9 +367,11 @@ export class GeminiProvider implements AiProvider {
     images: PageImage[],
     responseJsonSchema: Record<string, unknown>,
   ): Promise<string> {
+    const apiKey = this.deps.keys.next();
+
     let response;
     try {
-      response = await this.deps.client.models.generateContent({
+      response = await this.clientFor(apiKey).models.generateContent({
         model: this.deps.model,
         contents: [
           {
@@ -337,7 +399,12 @@ export class GeminiProvider implements AiProvider {
     } catch (error) {
       throw new ModelError(
         error instanceof Error ? error.message : String(error),
-        { cause: error, upstreamStatus: extractUpstreamStatus(error) },
+        {
+          cause: error,
+          upstreamStatus: extractUpstreamStatus(error),
+          // Carried so the retry loop knows which key to sideline.
+          apiKey,
+        },
       );
     }
 

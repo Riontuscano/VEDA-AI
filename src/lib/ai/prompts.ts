@@ -5,7 +5,7 @@
  * invalidates its cached responses instead of silently serving results from the
  * previous wording.
  */
-export const PROMPT_VERSION = "2026-08-27.3";
+export const PROMPT_VERSION = "2026-08-30.4";
 
 export const QUESTION_EXTRACTION_PROMPT = `You are extracting questions from one page of a scanned printed exam question paper.
 
@@ -13,7 +13,7 @@ Return every question and sub-question printed on this page.
 
 Rules:
 - Each labelled sub-part is its own entry. "11(a)" and "11(b)" are two entries, never one combined entry.
-- A parent stem that introduces sub-parts (e.g. "11. Answer the following:") is its own entry only if it carries question text of its own. Otherwise omit it and return only the sub-parts.
+- A parent stem that only introduces its sub-parts is NOT a question and must be omitted. Return the sub-parts alone. Stems like "3. Answer both parts:", "11. Answer the following:", "5. Attempt any two:" are instructions, not questions, and emitting them creates a question nobody can answer. Include the parent only when it asks something answerable in its own right, separate from its sub-parts.
 - "label" must be FULLY QUALIFIED: a sub-part always carries its parent number, even when the page prints only the sub-part marker. If question 3 is followed by "(a)" and "(b)", emit "3(a)" and "3(b)" — never "a", "(b)" or "b" on their own. Likewise a nested part prints as "11(a)(ii)". This matters because a student writing "Q3 (a)" must resolve to the same question.
 - Apart from qualifying it, do not renumber or invent labels. If a question block genuinely has no printed label and no parent to inherit from, use "".
 - "text" is the full question wording with the label removed. Preserve the original words; never summarize, complete, or correct them.

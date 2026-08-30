@@ -1,12 +1,31 @@
 "use client";
 
-import type { PipelineError, SessionStatus } from "@/lib/types";
+import { Check, CircleNotch, Warning } from "@phosphor-icons/react";
 
-const STAGES: { status: SessionStatus; label: string }[] = [
-  { status: "uploading", label: "Receiving pages" },
-  { status: "extracting_questions", label: "Reading the question paper" },
-  { status: "extracting_answers", label: "Reading the handwriting" },
-  { status: "mapping", label: "Matching answers to questions" },
+import type { PipelineError, SessionStatus } from "@/lib/types";
+import { FieldLabel } from "./ui/primitives";
+
+const STAGES: { status: SessionStatus; label: string; note: string }[] = [
+  {
+    status: "uploading",
+    label: "Receiving pages",
+    note: "Validating and storing the uploaded images",
+  },
+  {
+    status: "extracting_questions",
+    label: "Reading the question paper",
+    note: "Finding each question and its printed position",
+  },
+  {
+    status: "extracting_answers",
+    label: "Reading the handwriting",
+    note: "Transcribing each answer block. This is the slow step",
+  },
+  {
+    status: "mapping",
+    label: "Matching answers to questions",
+    note: "Labels first, then content for anything unlabelled",
+  },
 ];
 
 export type ProgressPanelProps = {
@@ -17,9 +36,9 @@ export type ProgressPanelProps = {
 /**
  * Per-stage progress for a running pipeline.
  *
- * Names the stage actually in progress rather than showing an undifferentiated
- * spinner — reading handwriting is the slow step, and saying so is the
- * difference between "working" and "stuck".
+ * Names the stage actually in progress and says what it is doing. Reading
+ * handwriting takes most of the wall time, and saying so is the difference
+ * between "working" and "stuck".
  */
 export function ProgressPanel({ status, errors }: ProgressPanelProps) {
   const currentIndex = STAGES.findIndex((stage) => stage.status === status);
@@ -27,44 +46,48 @@ export function ProgressPanel({ status, errors }: ProgressPanelProps) {
   const fatal = errors.filter((error) => !error.recovered);
 
   return (
-    <div className="mx-auto max-w-lg rounded-lg border border-slate-200 bg-white p-6">
-      <h2 className="text-base font-semibold text-slate-900">
-        {failed ? "Processing failed" : "Processing your upload"}
-      </h2>
+    <div className="w-full max-w-md text-left">
+      <FieldLabel>{failed ? "Failed" : "Processing"}</FieldLabel>
 
-      <ol className="mt-4 space-y-3">
+      <ol className="mt-4 flex flex-col">
         {STAGES.map((stage, index) => {
-          const state = failed
-            ? index < currentIndex
-              ? "done"
-              : "pending"
-            : index < currentIndex
-              ? "done"
-              : index === currentIndex
-                ? "active"
-                : "pending";
+          const done = index < currentIndex;
+          const active = !failed && index === currentIndex;
 
           return (
-            <li key={stage.status} className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white ${
-                  state === "done"
-                    ? "bg-emerald-600"
-                    : state === "active"
-                      ? "animate-pulse bg-blue-600"
-                      : "bg-slate-300"
-                }`}
-              >
-                {state === "done" ? "✓" : index + 1}
+            <li
+              key={stage.status}
+              className="flex gap-3 border-t border-[var(--border-subtle)] py-3 first:border-t-0 first:pt-0"
+            >
+              <span aria-hidden className="mt-0.5 shrink-0">
+                {done ? (
+                  <Check size={15} weight="bold" className="text-[var(--positive)]" />
+                ) : active ? (
+                  <CircleNotch
+                    size={15}
+                    weight="bold"
+                    className="animate-spin text-[var(--accent)]"
+                  />
+                ) : (
+                  <span className="block h-[15px] w-[15px] rounded-full border border-[var(--border-strong)]" />
+                )}
               </span>
-              <span
-                className={`text-sm ${
-                  state === "pending" ? "text-slate-400" : "text-slate-800"
-                }`}
-              >
-                {stage.label}
-                {state === "active" && "…"}
+
+              <span className="min-w-0">
+                <span
+                  className={`block text-[13px] ${
+                    done || active
+                      ? "font-medium text-[var(--text-primary)]"
+                      : "text-[var(--text-tertiary)]"
+                  }`}
+                >
+                  {stage.label}
+                </span>
+                {active && (
+                  <span className="mt-0.5 block text-[12px] text-[var(--text-secondary)]">
+                    {stage.note}
+                  </span>
+                )}
               </span>
             </li>
           );
@@ -74,14 +97,20 @@ export function ProgressPanel({ status, errors }: ProgressPanelProps) {
       {fatal.length > 0 && (
         <div
           role="alert"
-          className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          className="mt-5 rounded-[var(--radius)] border border-[var(--danger)]/30 bg-[var(--danger-wash)] p-3"
         >
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--danger)]">
+            <Warning size={14} weight="fill" />
+            Could not finish
+          </span>
           {fatal.map((error, index) => (
-            <p key={index}>{error.message}</p>
+            <p
+              key={index}
+              className="mt-1 text-[12.5px] leading-relaxed text-[var(--text-secondary)]"
+            >
+              {error.message}
+            </p>
           ))}
-          <p className="mt-2 text-xs text-red-700">
-            Try again, or upload clearer scans if the problem repeats.
-          </p>
         </div>
       )}
     </div>

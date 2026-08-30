@@ -1,6 +1,9 @@
 "use client";
 
+import { FilePdf, FileImage, Plus, X } from "@phosphor-icons/react";
 import { useId, useRef, useState } from "react";
+
+import { FieldLabel } from "./ui/primitives";
 
 export type FilePickerProps = {
   label: string;
@@ -13,8 +16,9 @@ export type FilePickerProps = {
 /**
  * File input for one of the two documents.
  *
- * Accepts a PDF or a set of images — a phone photo per page is the common case
- * for answer sheets, and a PDF for the printed paper.
+ * Accepts a PDF or a set of images. Once files are chosen the drop target
+ * collapses into a compact list, so the form does not keep two large empty
+ * rectangles on screen after the work of choosing is done.
  */
 export function FilePicker({
   label,
@@ -27,69 +31,110 @@ export function FilePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    setIsDragging(false);
-    if (disabled) return;
-    onChange(Array.from(event.dataTransfer.files));
-  };
+  const openPicker = () => inputRef.current?.click();
+
+  const removeAt = (index: number) =>
+    onChange(files.filter((_, i) => i !== index));
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-sm font-medium text-slate-900">
-        {label}
-      </label>
+      <div className="flex items-baseline justify-between">
+        <label htmlFor={inputId} className="text-[13px] font-medium">
+          {label}
+        </label>
+        <FieldLabel>{hint}</FieldLabel>
+      </div>
 
-      <div
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-          isDragging
-            ? "border-blue-500 bg-blue-50"
-            : "border-slate-300 bg-white"
-        } ${disabled ? "opacity-60" : ""}`}
-      >
-        <input
-          ref={inputRef}
-          id={inputId}
-          type="file"
-          multiple
-          accept="application/pdf,image/png,image/jpeg"
-          disabled={disabled}
-          onChange={(event) =>
-            onChange(Array.from(event.target.files ?? []))
-          }
-          className="sr-only"
-        />
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        multiple
+        accept="application/pdf,image/png,image/jpeg"
+        disabled={disabled}
+        onChange={(event) => onChange(Array.from(event.target.files ?? []))}
+        className="sr-only"
+      />
 
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed"
+      {files.length === 0 ? (
+        <div
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            if (!disabled) onChange(Array.from(event.dataTransfer.files));
+          }}
+          className={`rounded-[var(--radius)] border border-dashed transition-colors duration-150 ${
+            isDragging
+              ? "border-[var(--accent)] bg-[var(--accent-wash)]"
+              : "border-[var(--border-strong)] bg-[var(--surface-raised)]"
+          } ${disabled ? "opacity-50" : ""}`}
         >
-          Choose files
-        </button>
-
-        <p className="mt-2 text-xs text-slate-500">{hint}</p>
-
-        {files.length > 0 && (
-          <ul className="mt-3 space-y-1 text-left text-xs text-slate-700">
-            {files.map((file) => (
-              <li key={`${file.name}-${file.size}`} className="truncate">
-                {file.name}{" "}
-                <span className="text-slate-400">
-                  ({Math.round(file.size / 1024)} KB)
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={openPicker}
+            className="flex w-full cursor-pointer flex-col items-center gap-1.5 px-4 py-7 disabled:cursor-not-allowed"
+          >
+            <Plus size={16} weight="bold" className="text-[var(--text-tertiary)]" />
+            <span className="text-[13px] text-[var(--text-secondary)]">
+              Drop a PDF or images, or{" "}
+              <span className="text-[var(--accent)]">browse</span>
+            </span>
+          </button>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border-subtle)] bg-[var(--surface-raised)]">
+          <ul className="divide-y divide-[var(--border-subtle)]">
+            {files.map((file, index) => (
+              <li
+                key={`${file.name}-${file.size}-${index}`}
+                className="flex items-center gap-2.5 px-3 py-2"
+              >
+                {file.type === "application/pdf" ? (
+                  <FilePdf size={15} className="shrink-0 text-[var(--text-tertiary)]" />
+                ) : (
+                  <FileImage size={15} className="shrink-0 text-[var(--text-tertiary)]" />
+                )}
+                <span className="min-w-0 flex-1 truncate text-[13px]">
+                  {file.name}
                 </span>
+                <span className="font-mono text-[11px] text-[var(--text-tertiary)]">
+                  {formatSize(file.size)}
+                </span>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => removeAt(index)}
+                  aria-label={`Remove ${file.name}`}
+                  className="cursor-pointer rounded p-0.5 text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] disabled:cursor-not-allowed"
+                >
+                  <X size={13} weight="bold" />
+                </button>
               </li>
             ))}
           </ul>
-        )}
-      </div>
+
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={openPicker}
+            className="w-full cursor-pointer border-t border-[var(--border-subtle)] px-3 py-1.5 text-left text-[12px] text-[var(--accent)] transition-colors hover:bg-[var(--accent-wash)] disabled:cursor-not-allowed"
+          >
+            Replace files
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

@@ -1,20 +1,114 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens.
+ *
+ * Dense review-tool language: cockpit density, hairlines instead of cards,
+ * mono for every label and number, one interactive accent.
+ *
+ * Two colour jobs are kept deliberately separate:
+ *   --accent     cobalt. Interaction only: selection, focus, primary action.
+ *   --highlight  amber. The answer region drawn over the page, borrowing the
+ *                physical-highlighter metaphor. Amber also never collides with
+ *                blue or black ink, which is exactly what it sits on top of.
+ *
+ * Status is carried by text and weight first, tint second, so meaning never
+ * rests on colour alone.
+ */
+
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-/*
- * Light only, deliberately.
- *
- * The whole app is a document viewer sitting next to scans of white paper.
- * A dark chrome around a bright white page is worse to read, and supporting
- * both themes would double the contrast work on the highlight overlays for no
- * benefit here.
- */
+:root {
+  color-scheme: light;
+
+  --surface-sunken: #eceef1;
+  --surface-base: #f7f8fa;
+  --surface-raised: #ffffff;
+
+  --text-primary: #16181d;
+  --text-secondary: #4a5060;
+  --text-tertiary: #767d8e;
+
+  --border-subtle: #e2e5ea;
+  --border-strong: #cbd0d9;
+
+  --accent: #2f4fd8;
+  --accent-hover: #2540b8;
+  --accent-contrast: #ffffff;
+  --accent-wash: #eef1fd;
+
+  --highlight: #c77a06;
+  --highlight-fill: rgb(245 172 32 / 0.26);
+  --highlight-wash: #fdf5e6;
+
+  --positive: #0f7a53;
+  --positive-wash: #e9f6f0;
+
+  --danger: #c0392f;
+  --danger-wash: #fdeeed;
+
+  --radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* The viewer canvas stays a neutral workspace grey in both modes, the way
+       Acrobat and Figma do it. Scanned pages are white sheets; the chrome
+       around them is what changes. */
+    --surface-sunken: #101216;
+    --surface-base: #16181d;
+    --surface-raised: #1d2026;
+
+    --text-primary: #eef0f4;
+    --text-secondary: #a7aebd;
+    --text-tertiary: #7b8393;
+
+    --border-subtle: #2a2e36;
+    --border-strong: #3b414b;
+
+    --accent: #6f8bff;
+    --accent-hover: #8aa1ff;
+    --accent-contrast: #0d1017;
+    --accent-wash: #1b2136;
+
+    --highlight: #f0b03c;
+    --highlight-fill: rgb(240 176 60 / 0.24);
+    --highlight-wash: #2a2216;
+
+    --positive: #4bbd8d;
+    --positive-wash: #14261f;
+
+    --danger: #f0827a;
+    --danger-wash: #2b1a19;
+  }
+}
+
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--surface-base);
+  color: var(--text-primary);
   font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Uniform focus treatment. Never removed, only restyled. */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
