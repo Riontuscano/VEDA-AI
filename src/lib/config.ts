@@ -88,8 +88,7 @@ export function getConfig(): Config {
     cacheDir: process.env.AI_CACHE_DIR,
     sessionTtlMs: process.env.SESSION_TTL_MS,
     fileStoreDir: process.env.FILE_STORE_DIR,
-    redisUrl: process.env.UPSTASH_REDIS_REST_URL || undefined,
-    redisToken: process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
+    ...resolveRedisCredentials(process.env),
     blobToken: process.env.BLOB_READ_WRITE_TOKEN || undefined,
   });
 
@@ -102,6 +101,34 @@ export function getConfig(): Config {
 
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * Finds Redis credentials under either name Vercel might inject.
+ *
+ * The Marketplace Upstash integration sets `UPSTASH_REDIS_REST_*`, while the
+ * older Vercel KV product sets `KV_REST_API_*`. Which one you get depends on
+ * how the store was added, and discovering that during a deploy is a waste of
+ * an afternoon, so both are accepted.
+ */
+export function resolveRedisCredentials(
+  env: Record<string, string | undefined>,
+): { redisUrl: string | undefined; redisToken: string | undefined } {
+  const pairs: [string | undefined, string | undefined][] = [
+    [env.UPSTASH_REDIS_REST_URL, env.UPSTASH_REDIS_REST_TOKEN],
+    [env.KV_REST_API_URL, env.KV_REST_API_TOKEN],
+    [env.REDIS_REST_URL, env.REDIS_REST_TOKEN],
+  ];
+
+  for (const [url, token] of pairs) {
+    // Both halves are required; a URL without its token is not usable and
+    // should not shadow a complete pair further down the list.
+    if (url?.trim() && token?.trim()) {
+      return { redisUrl: url.trim(), redisToken: token.trim() };
+    }
+  }
+
+  return { redisUrl: undefined, redisToken: undefined };
 }
 
 /**

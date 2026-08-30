@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { collectApiKeys } from "@/lib/config";
+import { collectApiKeys, resolveRedisCredentials } from "@/lib/config";
 import type { Logger } from "@/lib/logger";
 import { RoundRobinKeyPool, describeKey } from "./key-pool";
 
@@ -111,5 +111,46 @@ describe("collectApiKeys", () => {
         GROQ_API_KEY: "other-provider",
       }),
     ).toEqual([]);
+  });
+});
+
+describe("resolveRedisCredentials", () => {
+  it("prefers the Marketplace Upstash variables", () => {
+    expect(
+      resolveRedisCredentials({
+        UPSTASH_REDIS_REST_URL: "https://a.upstash.io",
+        UPSTASH_REDIS_REST_TOKEN: "token-a",
+        KV_REST_API_URL: "https://b.upstash.io",
+        KV_REST_API_TOKEN: "token-b",
+      }),
+    ).toEqual({ redisUrl: "https://a.upstash.io", redisToken: "token-a" });
+  });
+
+  it("falls back to the older Vercel KV variables", () => {
+    expect(
+      resolveRedisCredentials({
+        KV_REST_API_URL: "https://b.upstash.io",
+        KV_REST_API_TOKEN: "token-b",
+      }),
+    ).toEqual({ redisUrl: "https://b.upstash.io", redisToken: "token-b" });
+  });
+
+  it("ignores a half-configured pair rather than letting it shadow a complete one", () => {
+    // A URL with no token is unusable, and treating it as configured would
+    // hide the working pair below it.
+    expect(
+      resolveRedisCredentials({
+        UPSTASH_REDIS_REST_URL: "https://a.upstash.io",
+        KV_REST_API_URL: "https://b.upstash.io",
+        KV_REST_API_TOKEN: "token-b",
+      }),
+    ).toEqual({ redisUrl: "https://b.upstash.io", redisToken: "token-b" });
+  });
+
+  it("reports nothing configured when neither pair is complete", () => {
+    expect(resolveRedisCredentials({ UPSTASH_REDIS_REST_URL: "  " })).toEqual({
+      redisUrl: undefined,
+      redisToken: undefined,
+    });
   });
 });
