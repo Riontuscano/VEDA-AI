@@ -21,6 +21,11 @@ export type AppErrorOptions = {
   httpStatus?: number;
   /** Whether retrying the same call could plausibly succeed. */
   retryable?: boolean;
+  /**
+   * HTTP status reported by an upstream service. 429 and 503 mean "overloaded,
+   * come back later" and deserve a much longer backoff than a generic failure.
+   */
+  upstreamStatus?: number;
   cause?: unknown;
 };
 
@@ -29,6 +34,7 @@ export class AppError extends Error {
   readonly code: string;
   readonly httpStatus: number;
   readonly retryable: boolean;
+  readonly upstreamStatus: number | undefined;
 
   constructor(message: string, options: AppErrorOptions = {}) {
     super(message, { cause: options.cause });
@@ -37,6 +43,12 @@ export class AppError extends Error {
     this.code = options.code ?? "internal_error";
     this.httpStatus = options.httpStatus ?? 500;
     this.retryable = options.retryable ?? false;
+    this.upstreamStatus = options.upstreamStatus;
+  }
+
+  /** True when the upstream said it was overloaded rather than broken. */
+  get isUpstreamOverloaded(): boolean {
+    return this.upstreamStatus === 429 || this.upstreamStatus === 503;
   }
 }
 

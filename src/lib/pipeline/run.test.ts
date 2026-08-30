@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type {
   AiProvider,
+  ExtractionResult,
   InferredMatch,
   PageAnswerBlock,
+  PageFailure,
   PageImage,
 } from "@/lib/ai/provider";
 import { MemorySessionStore } from "@/lib/store/memory-session-store";
@@ -66,6 +68,9 @@ function makeAnswerBlock(
   };
 }
 
+const allPagesFailed = (pages: PageImage[]): PageFailure[] =>
+  pages.map((page) => ({ page: page.index, message: "extraction exploded" }));
+
 class FakeProvider implements AiProvider {
   inferCalls = 0;
 
@@ -75,21 +80,27 @@ class FakeProvider implements AiProvider {
     private readonly options: {
       inferResult?: InferredMatch[];
       failOn?: "questions" | "answers" | "infer";
+      /** Pages that failed while others succeeded. */
+      failedPages?: PageFailure[];
     } = {},
   ) {}
 
-  async extractQuestions(_pages: PageImage[]): Promise<Question[]> {
+  async extractQuestions(
+    pages: PageImage[],
+  ): Promise<ExtractionResult<Question>> {
     if (this.options.failOn === "questions") {
-      throw new Error("question extraction exploded");
+      return { items: [], failedPages: allPagesFailed(pages) };
     }
-    return this.questions;
+    return { items: this.questions, failedPages: this.options.failedPages ?? [] };
   }
 
-  async extractAnswers(_pages: PageImage[]): Promise<PageAnswerBlock[]> {
+  async extractAnswers(
+    pages: PageImage[],
+  ): Promise<ExtractionResult<PageAnswerBlock>> {
     if (this.options.failOn === "answers") {
-      throw new Error("answer extraction exploded");
+      return { items: [], failedPages: allPagesFailed(pages) };
     }
-    return this.answers;
+    return { items: this.answers, failedPages: this.options.failedPages ?? [] };
   }
 
   async inferMatches(): Promise<InferredMatch[]> {
@@ -101,23 +112,29 @@ class FakeProvider implements AiProvider {
   }
 }
 
-async function setup(provider: AiProvider): Promise<SessionResult> {
+async function setup(
+  provider: AiProvider,
+  pageCount = 1,
+): Promise<SessionResult> {
   const sessions = new MemorySessionStore(60_000);
   const files = new FakeFileStore();
   const sessionId = "test-session";
 
-  const key = await files.save(sessionId, "page-0", {
-    bytes: new Uint8Array([1, 2, 3]),
-    contentType: "image/png",
-  });
-  const pageRef = { index: 0, width: 100, height: 100, storageKey: key };
+  const pageRefs = [];
+  for (let index = 0; index < pageCount; index += 1) {
+    const key = await files.save(sessionId, `page-${index}`, {
+      bytes: new Uint8Array([1, 2, 3]),
+      contentType: "image/png",
+    });
+    pageRefs.push({ index, width: 100, height: 100, storageKey: key });
+  }
 
   await sessions.create({
     sessionId,
     status: "uploading",
     createdAt: Date.now(),
-    questionPages: [pageRef],
-    answerPages: [pageRef],
+    questionPages: pageRefs,
+    answerPages: pageRefs,
     questions: [],
     answers: [],
     mappings: [],
@@ -234,7 +251,32 @@ describe("runPipeline", () => {
       .toEqual(["a-1"]);
   });
 
-  it("fails the session when extraction fails", async () => {
+  it("keeps the pages that succeeded when one page fails", async () => {
+    // A single upstream 503 used to kill the whole run, discarding every page
+    // that had already been read successfully.
+    const questions = [makeQuestion("1", 0), makeQuestion("2", 1)];
+    const answers = [makeAnswerBlock("a-1", 0, "Q1")];
+
+    const result = await setup(
+      new FakeProvider(questions, answers, {
+        failedPages: [{ page: 1, message: "503 UNAVAILABLE" }],
+      }),
+      2,
+    );
+
+    expect(result.status).toBe("done");
+    expect(result.questions).toHaveLength(2);
+    expect(result.answers).toHaveLength(1);
+
+    // The loss is reported rather than passed off as a complete result.
+    const recovered = result.errors.filter((entry) => entry.recovered);
+    expect(recovered.length).toBeGreaterThan(0);
+    expect(recovered.some((entry) => entry.message.includes("page 2"))).toBe(
+      true,
+    );
+  });
+
+  it("fails the session when every page fails", async () => {
     const result = await setup(
       new FakeProvider([], [], { failOn: "answers" }),
     );

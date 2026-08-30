@@ -24,8 +24,10 @@ import {
 } from "./schemas";
 import type {
   AiProvider,
+  ExtractionResult,
   InferredMatch,
   PageAnswerBlock,
+  PageFailure,
   PageImage,
 } from "./provider";
 
@@ -39,6 +41,7 @@ export type GeminiProviderDeps = {
   cache: ResponseCache;
   limiter: Limiter;
   maxRetries: number;
+  thinkingBudget: number;
 };
 
 export class GeminiProvider implements AiProvider {
@@ -47,18 +50,17 @@ export class GeminiProvider implements AiProvider {
   async extractQuestions(
     pages: PageImage[],
     log: Logger,
-  ): Promise<Question[]> {
-    const perPage = await Promise.all(
-      pages.map(async (page) => {
-        const result = await this.callJson({
-          prompt: QUESTION_EXTRACTION_PROMPT,
-          images: [page],
-          schema: RawQuestionPageSchema,
-          operation: "extract_questions",
-          log: log.child({ page: page.index }),
-        });
+  ): Promise<ExtractionResult<Question>> {
+    const perPage = await this.mapPages(pages, log, async (page) => {
+      const result = await this.callJson({
+        prompt: QUESTION_EXTRACTION_PROMPT,
+        images: [page],
+        schema: RawQuestionPageSchema,
+        operation: "extract_questions",
+        log: log.child({ page: page.index }),
+      });
 
-        return result.questions.map((raw, indexOnPage) => {
+      return result.questions.map((raw, indexOnPage) => {
           const box = fromGeminiBox(raw.box_2d, page.index);
           if (!box) {
             log.warn("Question box unusable, falling back to full page", {
@@ -78,54 +80,94 @@ export class GeminiProvider implements AiProvider {
             text: raw.text.trim(),
             order: 0,
             page: page.index,
-            box: box ?? pageFallbackBox(page.index),
-          } satisfies Question;
-        });
-      }),
-    );
+          box: box ?? pageFallbackBox(page.index),
+        } satisfies Question;
+      });
+    });
 
-    return finalizeQuestions(perPage.flat(), log);
+    return {
+      items: finalizeQuestions(perPage.items.flat(), log),
+      failedPages: perPage.failedPages,
+    };
   }
 
   async extractAnswers(
     pages: PageImage[],
     log: Logger,
-  ): Promise<PageAnswerBlock[]> {
-    const perPage = await Promise.all(
-      pages.map(async (page) => {
-        const result = await this.callJson({
-          prompt: ANSWER_EXTRACTION_PROMPT,
-          images: [page],
-          schema: RawAnswerPageSchema,
-          operation: "extract_answers",
-          log: log.child({ page: page.index }),
-        });
+  ): Promise<ExtractionResult<PageAnswerBlock>> {
+    const perPage = await this.mapPages(pages, log, async (page) => {
+      const result = await this.callJson({
+        prompt: ANSWER_EXTRACTION_PROMPT,
+        images: [page],
+        schema: RawAnswerPageSchema,
+        operation: "extract_answers",
+        log: log.child({ page: page.index }),
+      });
 
-        return result.answers.map((raw, indexOnPage) => {
-          const box = fromGeminiBox(raw.box_2d, page.index);
-          if (!box) {
-            log.warn("Answer box unusable, falling back to full page", {
-              page: page.index,
-              rawLabel: raw.raw_label,
-              rawBox: raw.box_2d,
-            });
-          }
-
-          const label = raw.raw_label.trim();
-          return {
-            id: `a-p${page.index}-${indexOnPage}`,
-            rawLabel: label === "" ? null : label,
-            text: raw.text.trim(),
-            boxes: [box ?? pageFallbackBox(page.index)],
-            confidence: clamp01(raw.confidence),
+      return result.answers.map((raw, indexOnPage) => {
+        const box = fromGeminiBox(raw.box_2d, page.index);
+        if (!box) {
+          log.warn("Answer box unusable, falling back to full page", {
             page: page.index,
-            continuesPreviousPage: raw.continues_previous_page,
-          } satisfies PageAnswerBlock;
-        });
-      }),
+            rawLabel: raw.raw_label,
+            rawBox: raw.box_2d,
+          });
+        }
+
+        const label = raw.raw_label.trim();
+        return {
+          id: `a-p${page.index}-${indexOnPage}`,
+          rawLabel: label === "" ? null : label,
+          text: raw.text.trim(),
+          boxes: [box ?? pageFallbackBox(page.index)],
+          confidence: clamp01(raw.confidence),
+          page: page.index,
+          continuesPreviousPage: raw.continues_previous_page,
+        } satisfies PageAnswerBlock;
+      });
+    });
+
+    return { items: perPage.items.flat(), failedPages: perPage.failedPages };
+  }
+
+  /**
+   * Runs a per-page extraction, isolating failures.
+   *
+   * Uses `allSettled` rather than `all`: pages are independent calls, and one
+   * page hitting an overloaded server must not throw away every page that
+   * succeeded. A page that exhausts its retries becomes a reported failure, not
+   * a dead run.
+   */
+  private async mapPages<T>(
+    pages: PageImage[],
+    log: Logger,
+    extract: (page: PageImage) => Promise<T[]>,
+  ): Promise<ExtractionResult<T[]>> {
+    const settled = await Promise.allSettled(
+      pages.map(async (page) => extract(page)),
     );
 
-    return perPage.flat();
+    const items: T[][] = [];
+    const failedPages: PageFailure[] = [];
+
+    settled.forEach((outcome, index) => {
+      const pageNumber = pages[index]?.index ?? index;
+      if (outcome.status === "fulfilled") {
+        items.push(outcome.value);
+        return;
+      }
+      const message =
+        outcome.reason instanceof Error
+          ? outcome.reason.message
+          : String(outcome.reason);
+      log.error("Page extraction failed after retries", {
+        page: pageNumber,
+        err: outcome.reason,
+      });
+      failedPages.push({ page: pageNumber, message });
+    });
+
+    return { items, failedPages };
   }
 
   async inferMatches(
@@ -245,11 +287,14 @@ export class GeminiProvider implements AiProvider {
           corrective = correctiveSuffix(error.message);
         }
 
-        const delayMs = backoffMs(attempt);
+        const overloaded =
+          error instanceof ModelError && error.isUpstreamOverloaded;
+        const delayMs = backoffMs(attempt, overloaded);
         log.warn("Model call failed, retrying", {
           operation,
           attempt,
           delayMs,
+          overloaded,
           err: error,
         });
         await sleep(delayMs);
@@ -286,12 +331,13 @@ export class GeminiProvider implements AiProvider {
           // Extraction is a transcription task; sampling variation is pure
           // downside, and it also makes the response cache far more effective.
           temperature: 0,
+          thinkingConfig: { thinkingBudget: this.deps.thinkingBudget },
         },
       });
     } catch (error) {
       throw new ModelError(
         error instanceof Error ? error.message : String(error),
-        { cause: error },
+        { cause: error, upstreamStatus: extractUpstreamStatus(error) },
       );
     }
 
@@ -367,9 +413,27 @@ function truncate(text: string, limit: number): string {
   return text.length <= limit ? text : `${text.slice(0, limit)}…`;
 }
 
-/** Exponential backoff with jitter, so parallel pages do not retry in lockstep. */
-function backoffMs(attempt: number): number {
-  return 2 ** attempt * 500 + Math.floor(Math.random() * 250);
+/**
+ * Exponential backoff with jitter, so parallel pages do not retry in lockstep.
+ *
+ * An overloaded upstream (429/503) gets a much longer base delay. Retrying a
+ * busy server after half a second just produces three fast failures — which is
+ * exactly what a 503 on this pipeline used to look like.
+ */
+function backoffMs(attempt: number, overloaded = false): number {
+  const base = overloaded ? 4000 : 500;
+  const jitter = Math.floor(Math.random() * base * 0.5);
+  return 2 ** attempt * base + jitter;
+}
+
+/** Digs the HTTP status out of the SDK's error, which stringifies a JSON body. */
+function extractUpstreamStatus(error: unknown): number | undefined {
+  const status = (error as { status?: unknown })?.status;
+  if (typeof status === "number") return status;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/"code"\s*:\s*(\d{3})/);
+  return match?.[1] ? Number(match[1]) : undefined;
 }
 
 const sleep = (ms: number): Promise<void> =>

@@ -34,6 +34,7 @@ function build(): AiProvider {
       : new NullResponseCache(),
     limiter: createLimiter(config.aiConcurrency),
     maxRetries: config.aiMaxRetries,
+    thinkingBudget: config.aiThinkingBudget,
   });
 }
 

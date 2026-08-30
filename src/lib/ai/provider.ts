@@ -30,6 +30,25 @@ export type InferredMatch = {
   confidence: number;
 };
 
+/** A page the model could not read, after its retries were exhausted. */
+export type PageFailure = {
+  page: number;
+  message: string;
+};
+
+/**
+ * Extraction outcome that survives partial failure.
+ *
+ * Pages are independent model calls, and a single overloaded-server 503 must
+ * not discard the pages that succeeded. Callers get what was extracted plus an
+ * explicit list of what was lost, so the failure is reported rather than
+ * hidden.
+ */
+export type ExtractionResult<T> = {
+  items: T[];
+  failedPages: PageFailure[];
+};
+
 /**
  * The AI seam.
  *
@@ -39,8 +58,14 @@ export type InferredMatch = {
  * tests without spending quota.
  */
 export interface AiProvider {
-  extractQuestions(pages: PageImage[], log: Logger): Promise<Question[]>;
-  extractAnswers(pages: PageImage[], log: Logger): Promise<PageAnswerBlock[]>;
+  extractQuestions(
+    pages: PageImage[],
+    log: Logger,
+  ): Promise<ExtractionResult<Question>>;
+  extractAnswers(
+    pages: PageImage[],
+    log: Logger,
+  ): Promise<ExtractionResult<PageAnswerBlock>>;
   /**
    * Content-based fallback for answers whose written label is missing or does
    * not parse. Only called for blocks that label matching could not resolve.

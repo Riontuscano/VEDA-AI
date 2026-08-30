@@ -26,6 +26,12 @@ const ConfigSchema = z.object({
   aiConcurrency: intFromEnv(2),
   /** Model calls are retried this many times after the first attempt. */
   aiMaxRetries: z.coerce.number().int().min(0).default(2),
+  /**
+   * Thinking tokens per call. Zero by default: extraction is transcription and
+   * layout work, not reasoning, and the extra latency was causing upstream 503
+   * timeouts on multi-page sheets. Raise it if extraction quality needs it.
+   */
+  aiThinkingBudget: z.coerce.number().int().min(0).default(0),
 
   /** Disk cache of model responses, keyed by input hash. */
   cacheEnabled: z
@@ -57,6 +63,7 @@ export function getConfig(): Config {
     maxPagePixels: process.env.MAX_PAGE_PIXELS,
     aiConcurrency: process.env.AI_CONCURRENCY,
     aiMaxRetries: process.env.AI_MAX_RETRIES,
+    aiThinkingBudget: process.env.AI_THINKING_BUDGET,
     cacheEnabled: process.env.AI_CACHE_ENABLED,
     cacheDir: process.env.AI_CACHE_DIR,
     sessionTtlMs: process.env.SESSION_TTL_MS,

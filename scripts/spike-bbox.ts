@@ -59,12 +59,12 @@ async function main(): Promise<void> {
   const log = logger.child({ spike: questionMode ? "questions" : "answers" });
 
   const overlays: Overlay[] = questionMode
-    ? (await provider.extractQuestions(pages, log)).map((question) => ({
+    ? (await provider.extractQuestions(pages, log)).items.map((question) => ({
         box: question.box,
         label: question.label,
         detail: question.text,
       }))
-    : (await provider.extractAnswers(pages, log)).flatMap((answer) =>
+    : (await provider.extractAnswers(pages, log)).items.flatMap((answer) =>
         answer.boxes.map((box) => ({
           box,
           label: answer.rawLabel ?? "(unlabelled)",

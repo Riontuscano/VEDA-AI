@@ -1,4 +1,4 @@
-import type { AiProvider, PageImage } from "@/lib/ai/provider";
+import type { AiProvider, PageFailure, PageImage } from "@/lib/ai/provider";
 import { AppError, type ErrorStage, toAppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import type { FileStore, SessionStore } from "@/lib/store";
@@ -59,35 +59,67 @@ export async function runPipeline(
       loadPages(deps.files, session.answerPages),
     ]);
 
-    const questions = await stage(
+    const questionResult = await stage(
       deps,
       sessionId,
       "extracting_questions",
       () => deps.provider.extractQuestions(questionImages, log),
     );
+    assertNotTotalFailure(
+      questionResult.failedPages,
+      questionImages.length,
+      "extract_questions",
+      "the question paper",
+    );
+    await recordPageFailures(
+      deps,
+      sessionId,
+      "extract_questions",
+      "question paper",
+      questionResult.failedPages,
+    );
+
+    const questions = questionResult.items;
     await patch(deps.sessions, sessionId, (current) => ({
       ...current,
       questions,
     }));
-    log.info("Questions extracted", { count: questions.length });
+    log.info("Questions extracted", {
+      count: questions.length,
+      failedPages: questionResult.failedPages.length,
+    });
 
-    const answers = await stage(
+    const answerResult = await stage(
       deps,
       sessionId,
       "extracting_answers",
-      async () => {
-        const pageBlocks = await deps.provider.extractAnswers(
-          answerImages,
-          log,
-        );
-        return mergeAnswerBlocks(pageBlocks);
-      },
+      () => deps.provider.extractAnswers(answerImages, log),
     );
+    assertNotTotalFailure(
+      answerResult.failedPages,
+      answerImages.length,
+      "extract_answers",
+      "the answer sheet",
+    );
+    await recordPageFailures(
+      deps,
+      sessionId,
+      "extract_answers",
+      "answer sheet",
+      answerResult.failedPages,
+    );
+
+    // Merging after the failure check, so a dropped page cannot silently look
+    // like an answer that simply ended early.
+    const answers = mergeAnswerBlocks(answerResult.items);
     await patch(deps.sessions, sessionId, (current) => ({
       ...current,
       answers,
     }));
-    log.info("Answers extracted", { count: answers.length });
+    log.info("Answers extracted", {
+      count: answers.length,
+      failedPages: answerResult.failedPages.length,
+    });
 
     const mappings = await stage(deps, sessionId, "mapping", () =>
       mapAnswers(deps, sessionId, questions, answers, log),
@@ -180,6 +212,50 @@ async function mapAnswers(
     positional,
     inferred,
   });
+}
+
+/**
+ * Fails the run only when a document produced nothing at all.
+ *
+ * Losing one page of ten is a degraded result worth showing; losing every page
+ * means there is no result, and pretending otherwise would present an empty
+ * paper as a successful extraction.
+ */
+function assertNotTotalFailure(
+  failures: PageFailure[],
+  pageCount: number,
+  stageName: ErrorStage,
+  documentLabel: string,
+): void {
+  if (pageCount === 0 || failures.length < pageCount) return;
+  throw new AppError(
+    `Could not read any page of ${documentLabel}. ${failures[0]?.message ?? ""}`.trim(),
+    { stage: stageName, code: "all_pages_failed" },
+  );
+}
+
+/** Records unreadable pages as recovered errors the UI surfaces to the user. */
+async function recordPageFailures(
+  deps: PipelineDeps,
+  sessionId: string,
+  stageName: ErrorStage,
+  documentLabel: string,
+  failures: PageFailure[],
+): Promise<void> {
+  if (failures.length === 0) return;
+
+  const pages = failures.map((failure) => failure.page + 1).join(", ");
+  await patch(deps.sessions, sessionId, (current) => ({
+    ...current,
+    errors: [
+      ...current.errors,
+      {
+        stage: stageName,
+        message: `Could not read ${documentLabel} page ${pages}. Results below are missing whatever was on ${failures.length > 1 ? "those pages" : "that page"}.`,
+        recovered: true,
+      },
+    ],
+  })).catch(() => undefined);
 }
 
 /** Sets the session status, runs the stage, and tags failures with it. */
