@@ -65,9 +65,11 @@ describe("RoundRobinKeyPool", () => {
   });
 
   it("never exposes key material in its log reference", () => {
-    const key = "AQ.Ab8RN6SecretMaterialHere1234";
+    // Deliberately not shaped like a real vendor key, so secret scanners have
+    // nothing to flag here.
+    const key = "not-a-real-key-DO-NOT-SCAN-1234";
     expect(describeKey(key)).toBe("…1234");
-    expect(describeKey(key)).not.toContain("Secret");
+    expect(describeKey(key)).not.toContain("DO-NOT-SCAN");
   });
 });
 
