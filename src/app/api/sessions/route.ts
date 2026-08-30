@@ -26,6 +26,14 @@ import { errorResponse } from "../_lib/respond";
  * returned session id.
  */
 
+/**
+ * The pipeline runs after the response via `after()`, and on Vercel that work
+ * counts toward this function's duration. A multi-page sheet takes tens of
+ * seconds, so the default 15s would cut the run off partway through.
+ */
+export const maxDuration = 300;
+export const runtime = "nodejs";
+
 const PageMetaSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),

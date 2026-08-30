@@ -102,13 +102,32 @@ model reads are byte-identical to the ones the viewer displays, so returned
 bounding boxes line up with what the user sees by construction, with no
 coordinate translation anywhere.
 
-**Why not Vercel.** The brief says no database is needed, which is true — but
+**Serverless needed real storage, and that was a wiring change.** The brief says
+no database is needed, which is true of the domain but not of the deployment:
 "in-memory state" and "serverless" do not compose. Each request may hit a
-different instance, so a session written on one is missing on the next; and
+different instance, so a session written on one is missing from the next; and
 background work stops when the response returns, so the pipeline would die
-mid-run. Deployed as a single long-lived Node process, the in-memory store and
-in-process job runner are genuinely correct rather than a compromise. That is
-the one architectural constraint this project actually has.
+mid-run. The failure mode is the nasty kind, because it works whenever two
+requests happen to share an instance.
+
+Because storage sat behind `SessionStore` and `FileStore` from the start,
+supporting it meant adding two implementations and editing one wiring file. No
+pipeline, route or component code changed.
+
+| | Sessions | Page images | Background work |
+| --- | --- | --- | --- |
+| Local / single server | in-memory `Map` | local disk | fire and forget |
+| Serverless (Vercel) | Upstash Redis | Vercel Blob | `after()` |
+
+The backend is chosen from whether its credentials are present, so the same
+build runs in both targets and local development needs no cloud account.
+Running on Vercel *without* Redis throws at startup rather than degrading
+quietly, because a store that works only some of the time is harder to diagnose
+than one that refuses.
+
+Redis updates use a compare-and-set Lua script rather than a lock: instances
+cannot share an in-process mutex, and a read-modify-write from the client would
+leave a window for a lost update.
 
 **Upload returns immediately.** The pipeline takes tens of seconds on a
 multi-page paper. The client gets a session id and polls per-stage status, so
@@ -173,6 +192,25 @@ to a visibly approximate highlight rather than to nothing or a crash.
   bytes, per-page size, page count, and a total-pixel cap as a
   decompression-bomb guard. Storage paths are generated, never derived from
   uploaded names.
+
+## Deploying
+
+**Vercel** (recommended; no cold-start pause between demos)
+
+1. Push the repo and import it at vercel.com.
+2. Storage → add **Upstash Redis** and **Blob**. Both are on the free tier and
+   both inject their own environment variables.
+3. Add `GEMINI_API_KEYS` (comma-separated) in project settings.
+
+`vercel.json` raises `maxDuration` on the upload route to 300s, because the
+pipeline runs after the response via `after()` and that time counts against the
+function.
+
+**Render** (single long-lived server; no Redis or Blob needed)
+
+New → Blueprint → pick the repo. It reads `render.yaml`. Add `GEMINI_API_KEYS`
+in the dashboard. Note the free tier spins down when idle, so the first request
+after a pause pays a cold start.
 
 ## Known limitations
 

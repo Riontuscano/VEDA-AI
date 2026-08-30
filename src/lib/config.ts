@@ -51,8 +51,20 @@ const ConfigSchema = z.object({
   /** Sessions older than this are evicted from the in-memory store. */
   sessionTtlMs: intFromEnv(60 * 60 * 1000),
 
-  /** Root directory for rasterized page images. */
+  /** Root directory for rasterized page images, when using local disk. */
   fileStoreDir: z.string().default(".data/files"),
+
+  /*
+   * Optional managed backends.
+   *
+   * Present in a serverless deployment, absent locally. Their absence is not an
+   * error: the in-memory and on-disk implementations are correct for a single
+   * long-lived process, and requiring cloud credentials to run the app locally
+   * would be a worse default.
+   */
+  redisUrl: z.string().url().optional(),
+  redisToken: z.string().min(1).optional(),
+  blobToken: z.string().min(1).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -76,6 +88,9 @@ export function getConfig(): Config {
     cacheDir: process.env.AI_CACHE_DIR,
     sessionTtlMs: process.env.SESSION_TTL_MS,
     fileStoreDir: process.env.FILE_STORE_DIR,
+    redisUrl: process.env.UPSTASH_REDIS_REST_URL || undefined,
+    redisToken: process.env.UPSTASH_REDIS_REST_TOKEN || undefined,
+    blobToken: process.env.BLOB_READ_WRITE_TOKEN || undefined,
   });
 
   if (!parsed.success) {

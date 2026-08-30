@@ -21,6 +21,8 @@
   "dependencies": {
     "@google/genai": "^2.19.0",
     "@phosphor-icons/react": "^2.1.10",
+    "@upstash/redis": "^1.38.3",
+    "@vercel/blob": "^2.8.0",
     "next": "16.3.3",
     "pdfjs-dist": "^6.2.108",
     "react": "19.2.8",
