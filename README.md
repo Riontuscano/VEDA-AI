@@ -20,7 +20,38 @@ npm run typecheck   # tsc, strict
 npm run lint
 npm test            # unit + pipeline integration, no API key needed
 npm run build
+
+npm run check:keys  # probe every key in the pool
+npm run fixtures    # regenerate the sample paper and answer sheet
+npm run eval        # score accuracy against ground truth
+npm run spike:bbox -- <page images>   # render model boxes over real pages
 ```
+
+## Measuring accuracy
+
+`npm run eval` runs the real pipeline over `fixtures/ground-truth/*.json` and
+scores seven metrics, so a prompt change can be judged by numbers instead of by
+re-reading one document and forming an impression. It exits non-zero below 90%,
+which makes it usable as a gate.
+
+```
+  PASS  ██████████ 100%  Question recall        6/6 found
+  PASS  ██████████ 100%  Question precision     6/6 are real
+  PASS  ██████████ 100%  Printed order          6/6 in position
+  PASS  ██████████ 100%  Answered / unanswered  6/6 classified
+  PASS  ██████████ 100%  Mapping correctness    3/3 matched right answer
+  PASS  ██████████ 100%  Multi-page merging     1/1 spanned correctly
+  PASS  ██████████ 100%  Unmatched answers      1/1 surfaced
+```
+
+Recall and precision are separate on purpose: recall alone cannot see a parent
+stem like "3. Answer both parts:" being emitted as a phantom question. The
+scoring functions have their own unit tests that inject one regression at a
+time and assert the matching metric drops, because a metric that cannot fail
+reports confidence it has not earned.
+
+The shipped fixture is typed rather than handwritten, so it measures structure
+and not handwriting legibility. Add a scanned case to cover that.
 
 ## Architecture
 
@@ -120,6 +151,15 @@ to a visibly approximate highlight rather than to nothing or a crash.
   survive re-processing the same fixtures while tuning prompts.
 - **Concurrency is capped** (`AI_CONCURRENCY`, default 2). Firing one call per
   page in parallel is the quickest way to get rate-limited on a free tier.
+- **API keys are pooled and rotated.** A 429 or 403 sidelines that key for a
+  cooldown and the call goes out immediately on the next one. A 503 backs off
+  instead, because the model being busy is not key-specific and rotating would
+  burn the pool for nothing. Rotation has its own budget separate from retries:
+  charging rotations against the retry budget made a pool of ten give up after
+  two. Only the last four characters of a key ever reach the logs.
+- **A failed page does not fail the run.** Pages are independent calls, so one
+  page timing out is reported as a recovered error and the rest are kept. The
+  session fails only when every page of a document fails.
 - **Uploads are validated on content**, not on the declared MIME type: magic
   bytes, per-page size, page count, and a total-pixel cap as a
   decompression-bomb guard. Storage paths are generated, never derived from

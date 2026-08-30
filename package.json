@@ -15,7 +15,8 @@
     "spike:bbox": "tsx --env-file-if-exists=.env.local scripts/spike-bbox.ts",
     "smoke:gemini": "tsx --env-file-if-exists=.env.local scripts/smoke-gemini.ts",
     "fixtures": "tsx scripts/make-fixtures.ts",
-    "check:keys": "tsx --env-file-if-exists=.env.local scripts/check-keys.ts"
+    "check:keys": "tsx --env-file-if-exists=.env.local scripts/check-keys.ts",
+    "eval": "tsx --env-file-if-exists=.env.local scripts/eval.ts"
   },
   "dependencies": {
     "@google/genai": "^2.19.0",
