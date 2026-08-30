@@ -132,6 +132,15 @@ anchored answers, then model content inference for whatever is left. Unanswered
 questions and unmatched answers are first-class results shown in the UI. Nothing
 is forced into a guess.
 
+**The result is ranked by where it is likely wrong.** The mapper is accurate but
+not perfect, so the useful question is not "is it right?" but "where should a
+human look?". Every row gets a risk score with a stated reason, and the sidebar
+can reorder by it, turning a check of 40 questions into a check of the handful
+the system is least sure about. Content inference ranks above a positional
+guess, which ranks above a clean labelled match. Risks take the worst factor
+rather than the sum, so two moderate doubts about one row never outrank a
+single severe one.
+
 **Everything the model returns is validated.** Responses are requested against a
 JSON schema and then parsed with Zod at the adapter boundary; a schema failure
 retries once with a corrective prompt before failing the stage. Model output is

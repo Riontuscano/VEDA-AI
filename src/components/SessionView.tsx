@@ -14,7 +14,15 @@ import type {
 import { AnswerSheetView } from "./AnswerSheetView";
 import { AppHeader } from "./AppHeader";
 import { ProgressPanel } from "./ProgressPanel";
-import { QuestionList, type Selection } from "./QuestionList";
+import {
+  QuestionList,
+  type Selection,
+  type SortMode,
+} from "./QuestionList";
+import {
+  buildReviewQueue,
+  countNeedingReview,
+} from "@/lib/pipeline/review";
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -29,6 +37,7 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   const [result, setResult] = useState<SessionResultPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("paper");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -137,6 +146,9 @@ export function SessionView({ sessionId }: { sessionId: string }) {
     (mapping) => mapping.questionId === null,
   ).length;
   const recovered = result.errors.filter((entry) => entry.recovered);
+  const needsReview = countNeedingReview(
+    buildReviewQueue(result.questions, result.answers, result.mappings),
+  );
 
   return (
     <>
@@ -145,6 +157,9 @@ export function SessionView({ sessionId }: { sessionId: string }) {
           <Stat label="questions" value={result.questions.length} />
           <Stat label="answered" value={answered} />
           {orphans > 0 && <Stat label="unmatched" value={orphans} />}
+          {needsReview > 0 && (
+            <Stat label="to review" value={needsReview} emphasis />
+          )}
         </dl>
         <Link
           href="/"
@@ -174,12 +189,28 @@ export function SessionView({ sessionId }: { sessionId: string }) {
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] lg:h-auto lg:w-[26rem] lg:border-b-0 lg:border-r">
+          <div className="flex shrink-0 items-center gap-1 border-b border-[var(--border-subtle)] px-3 py-2">
+            <SortTab
+              active={sortMode === "paper"}
+              onClick={() => setSortMode("paper")}
+            >
+              Paper order
+            </SortTab>
+            <SortTab
+              active={sortMode === "review"}
+              onClick={() => setSortMode("review")}
+            >
+              Needs review first
+            </SortTab>
+          </div>
+
           <QuestionList
             questions={result.questions}
             answers={result.answers}
             mappings={result.mappings}
             selection={selection}
             onSelect={handleSelect}
+            sortMode={sortMode}
           />
         </aside>
 
@@ -195,12 +226,51 @@ export function SessionView({ sessionId }: { sessionId: string }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: number;
+  emphasis?: boolean;
+}) {
   return (
     <div className="flex items-baseline gap-1.5">
       <dt className="uppercase tracking-[0.04em]">{label}</dt>
-      <dd className="font-medium text-[var(--text-primary)]">{value}</dd>
+      <dd
+        className={`font-medium ${
+          emphasis ? "text-[var(--highlight)]" : "text-[var(--text-primary)]"
+        }`}
+      >
+        {value}
+      </dd>
     </div>
+  );
+}
+
+function SortTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`cursor-pointer rounded-[4px] px-2.5 py-1 text-[12px] transition-colors duration-150 ${
+        active
+          ? "bg-[var(--accent-wash)] font-medium text-[var(--accent)]"
+          : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
