@@ -23,9 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Answer Sheet Mapper",
+  title: "VEDA AI",
   description:
-    "Extract questions from a paper, read a handwritten answer sheet, and map every answer to the question it answers.",
+    "Answer Sheet Mapper is an application that automates the process of mapping handwritten answer sheets to printed question papers.",
 };
 
 // Props are typed inline rather than via Next's generated `LayoutProps`, which

@@ -14,7 +14,7 @@ export function AppHeader({ children }: { children?: ReactNode }) {
       >
         <Mark />
         <span className="text-[13px] font-semibold tracking-tight">
-          Answer Sheet Mapper
+          VEDA AI
         </span>
       </Link>
 
